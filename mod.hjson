@@ -1,0 +1,23 @@
+#the mod name as displayed in-game
+displayName: "RA2 Announcer"
+
+#the internal name of your mod
+name: "ra2-announcer"
+
+#your name
+author: "codex"
+
+#the fully qualified main class of the mod
+main: "ra2.Ra2Announcer"
+
+#the mod description as seen in the mod dialog
+description: "RA2-style English voice announcements for game events (waves, base attacks, unit losses, research, victories)."
+
+#the mod version
+version: 1.0.0
+
+#the minimum game build required to run this mod
+minGameVersion: 154
+
+#this is a java mod
+java: true
