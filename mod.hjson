@@ -14,7 +14,10 @@ main: "ra2.Ra2Announcer"
 description: "RA2-style English voice announcements for game events (waves, base attacks, unit losses, research, victories)."
 
 #the mod version
-version: 1.0.0
+version: 1.0.1
+
+#hide this mod from the in-game mod browser
+hidden: true
 
 #the minimum game build required to run this mod
 minGameVersion: 154
