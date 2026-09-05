@@ -30,6 +30,9 @@ The fixed event lines include wave, base, combat, factory, mining, Boss, and hig
 | | "Structure destroyed." | Friendly building destroyed; the side panel shows the block type and count |
 | | "Enemy base destroyed." | Enemy core destroyed |
 | | "Warning! Enemy xxx detected!" | A configured high-value enemy unit or building appears |
+| | "Warning! Enemy strike force approaching." | A multi-unit enemy command batch is detected (see Enemy force reports) |
+| | "Warning! Priority enemy target detected." | A watched enemy unit from the custom unit watch list appears |
+| | "Priority target destroyed." | A watched enemy unit is destroyed |
 | | "Training." | A unit is selected in a friendly unit factory |
 | | "Unit ready." | A friendly unit finishes production |
 | | "Cancel." | A unit factory selection is cleared |
@@ -54,8 +57,10 @@ Settings > **RA2 Announcer**:
 - **Panel duration / marker duration** — controls how long each card and target remain visible.
 - **Maximum visible cards / spacing / offsets** — controls queue size, card spacing, and placement around the vanilla HUD. The offset ranges cover up to 4K-sized layouts.
 - **Core damage alerts / interval** — independently enables core-hit alerts and limits their card, marker, line, and voice frequency (5–300 seconds).
-- **Per-alert colors** — Wave, Base, Combat, Unit loss, Building loss, High-value target, Tech/results, Campaign, Factory, and Ore miner alerts each have their own Hex color field. The color controls that alert's card accent bar, world marker, and connecting line. Use `b51f2a`, `#b51f2a`, or `RRGGBBAA`; invalid values fall back to the category default.
-- **Card / accent / line color** — the global card background, legacy accent, and line fields remain as compatibility fallbacks.
+- **Per-alert colors** — Wave, Base, Combat, Unit loss, Building loss, High-value target, Tech/results, Campaign, Factory, Ore miner, Enemy force, and Custom unit watch alerts each have an inline color swatch button on the right of their toggle row. Click it to edit the color with a hex field, preset swatches, and a live preview. The color controls that alert's card accent bar, world marker, and connecting line. Use `b51f2a`, `#b51f2a`, or `RRGGBBAA`; invalid values fall back to the category default. Stored settings keys are unchanged, so existing colors carry over.
+- **Card / accent color** — the global card background and accent fallback colors as swatch rows.
+- **Enemy force reports** — announces the composition of a multi-unit enemy control action: the most numerous unit type, plus the highest-threat type (estimated DPS × health) for mixed groups. Uses the same client-visible command data MindustryX draws its command lines from, so it works in multiplayer. `Min force size` (2–10) and `report interval` (5–120 s per team) control spam; non-combat and missile units are ignored.
+- **Custom unit watch** — a comma-separated list of unit internal or localized names (case-insensitive, English or Chinese commas both work). Watched enemy units trigger a detection announcement when they appear and a destruction confirmation when they are killed, each with its own per-type cooldown.
 - **Line width / opacity / solid mode** — makes connections easier to see on bright maps and supports solid or dashed lines.
 - **High-value target alerts** — rules are comma-separated internal names. `core,boss,t5` means enemy cores, every `Unit.isBoss()` unit, and the six vanilla T5 units. For custom content, use `boss,t5,unit:reign,unit:my-custom-unit,block:foreshadow,block:my-custom-block`. `unit:` and `block:` use internal names, not localized display names; matching is case-insensitive.
 - **Independent event toggles** — unit loss, building loss, high-value detection, factory training/cancel, unit ready, and ore-miner attack alerts can be disabled separately.
@@ -70,6 +75,7 @@ Regenerate all audio with a different [edge-tts](https://github.com/rany2/edge-t
 ```powershell
 pip install edge-tts
 python tools/generate_voice.py "en-US-ChristopherNeural"   # or any edge-tts voice
+python tools/generate_voice.py "en-US-ChristopherNeural" ann_enemy_force   # regenerate single lines
 ```
 
 Requires `ffmpeg` in PATH. Outputs loudness-normalized mono OGG files into `assets/sounds/`.
@@ -84,7 +90,8 @@ Requires `ffmpeg` in PATH. Outputs loudness-normalized mono OGG files into `asse
 ## Notes
 
 - Cooldowns prevent announcement spam; each line has an independent cooldown.
-- Friendly unit and building losses are grouped for about one second. The side panel reports the concrete type and count (for example, `T-4 x3, Poly x2`), while the voice line remains rate-limited separately.
+- Friendly unit and building losses within about one second are merged into a single card that lists up to four types (for example, `T-4 x3, Poly x2, and 2 other types`); the voice line remains rate-limited separately.
+- Turning the side announcement panel off also hides the connecting lines (they anchor onto the hidden cards); world target markers keep working on their own.
 - Missile units are ignored by destruction announcements, including custom `MissileUnitType` units.
 - Servers are unaffected: the mod no-ops when `headless`.
 - Core health and low power are polled, so multiplayer clients still hear base alerts even though damage/power simulation runs on the host.

@@ -3,13 +3,25 @@ package ra2;
 import arc.Core;
 import arc.Events;
 import arc.audio.Sound;
+import arc.graphics.Color;
 import arc.graphics.g2d.TextureRegion;
+import arc.scene.ui.Button;
+import arc.scene.ui.Image;
+import arc.scene.ui.Label;
+import arc.scene.ui.TextButton;
+import arc.scene.ui.TextField;
+import arc.scene.Element;
+import arc.scene.event.ChangeListener;
+import arc.scene.ui.layout.Scl;
+import arc.scene.ui.layout.Table;
 import arc.struct.ObjectMap;
 import arc.struct.ObjectSet;
 import arc.struct.Seq;
 import arc.util.Interval;
 import arc.util.Log;
 import arc.util.Time;
+import mindustry.ai.UnitGroup;
+import mindustry.ai.types.CommandAI;
 import mindustry.content.StatusEffects;
 import mindustry.game.EventType.BlockBuildEndEvent;
 import mindustry.game.EventType.BlockDestroyEvent;
@@ -29,7 +41,13 @@ import mindustry.game.EventType.WinEvent;
 import mindustry.game.EventType.WorldLoadEvent;
 import mindustry.game.SpawnGroup;
 import mindustry.gen.Building;
+import mindustry.gen.Groups;
+import mindustry.gen.Tex;
+import mindustry.gen.Unit;
+import mindustry.type.UnitType;
 import mindustry.type.unit.MissileUnitType;
+import mindustry.ui.Styles;
+import mindustry.ui.dialogs.BaseDialog;
 import mindustry.world.Block;
 import mindustry.gen.Sounds;
 import mindustry.mod.Mod;
@@ -50,12 +68,22 @@ public class Ra2Announcer extends Mod{
     private static final float LOSS_FLUSH_TICKS = 60f;
     private static final float LOSS_MAX_WAIT_TICKS = 120f;
     private static final int LOSS_MAX_TYPES = 4;
+    private static final float FORCE_WINDOW_TICKS = 24f;
+    private static final int FORCE_MAX_GROUPS = 512;
+    private static final String[] colorPresets = {
+        "ef3d46", "b51f2a", "ff7e46", "ffb347", "ffd166", "a3e048", "4ce0c8",
+        "64a0ff", "7d6bff", "b47fff", "ff7eb6", "e8e8e8", "9aa0a6", "33334d"
+    };
 
     private final ObjectMap<String, Sound> sounds = new ObjectMap<>();
     private final ObjectMap<String, PendingLoss> pendingLosses = new ObjectMap<>();
     private final ObjectMap<String, Long> lastPlayed = new ObjectMap<>();
     private final ObjectMap<String, Long> detectedTargets = new ObjectMap<>();
     private final ObjectSet<PowerGraph> powerGraphs = new ObjectSet<>();
+    private final ObjectSet<UnitGroup> processedGroups = new ObjectSet<>();
+    private final ObjectMap<Integer, Seq<BatchedUnit>> pendingBatches = new ObjectMap<>();
+    private final ObjectMap<Integer, Long> forceAnnouncedAt = new ObjectMap<>();
+    private final ObjectMap<String, TextButton> colorSwatches = new ObjectMap<>();
     private final Interval timer = new Interval(3);
 
     private boolean waveWarned;
@@ -64,6 +92,9 @@ public class Ra2Announcer extends Mod{
     private float lastCoreHealth = -1f;
     private float lowPowerTicks;
     private long lastCoreAttackAt = Long.MIN_VALUE;
+    private float batchWindowStart = -1f;
+    private boolean forceVoiceDedicated;
+    private boolean watchVoiceDedicated;
 
     @Override
     public void init(){
@@ -85,7 +116,8 @@ public class Ra2Announcer extends Mod{
             "ann_high_value_warning", "ann_detected",
             "ann_research", "ann_victory", "ann_defeat",
             "ann_sector", "ann_sector_captured",
-            "ann_base", "ann_reactor", "ann_low_power"
+            "ann_base", "ann_reactor", "ann_low_power",
+            "ann_enemy_force", "ann_watch_warning", "ann_watch_destroyed"
         };
 
         for(String name : names){
@@ -95,6 +127,11 @@ public class Ra2Announcer extends Mod{
         for(var block : content.blocks()) loadSound("name-block-" + block.name);
         if(!sounds.containsKey("ann_boss")) loadSoundAlias("ann_boss", "ann_guardian");
         if(!sounds.containsKey("ann_boss_kill")) loadSoundAlias("ann_boss_kill", "ann_guardian_kill");
+        //graceful fallback when the newer TTS lines have not been generated yet
+        forceVoiceDedicated = sounds.containsKey("ann_enemy_force");
+        watchVoiceDedicated = sounds.containsKey("ann_watch_warning");
+        if(!forceVoiceDedicated) loadSoundAlias("ann_enemy_force", "ann_high_value_warning");
+        if(!watchVoiceDedicated) loadSoundAlias("ann_watch_warning", "ann_high_value_warning");
     }
 
     private void loadSound(String name){
@@ -144,13 +181,18 @@ public class Ra2Announcer extends Mod{
             }else if(e.unit.isBoss() && highValueMatches("boss")){
                 //enemy boss eliminated
                 playAt("ann_boss_kill", "ra2ann-combat", "ra2ann.boss.kill.line", COOLDOWN_LINE, e.unit.x, e.unit.y);
+            }else if(watchKill(e.unit)){
+                //handled in watchKill
             }else if(highValueMatches(e.unit)){
                 showHighValue("ra2ann.high.value.unit", e.unit.type == null ? "unknown" : e.unit.type.localizedName,
                     e.unit.type == null ? null : e.unit.type.uiIcon, e.unit.x, e.unit.y);
             }
         });
 
-        Events.on(UnitSpawnEvent.class, e -> announceDetected(e.unit));
+        Events.on(UnitSpawnEvent.class, e -> {
+            announceDetected(e.unit);
+            watchDetected(e.unit);
+        });
         Events.on(BlockBuildEndEvent.class, e -> {
             if(player != null && e.tile != null && e.tile.build != null && e.tile.build.team != playerTeam()
             && highValueMatches(e.tile.build)){
@@ -163,6 +205,7 @@ public class Ra2Announcer extends Mod{
                 playAt("ann_unit_ready", "ra2ann-unit-ready", "ra2ann.unit.ready.line", COOLDOWN_UNIT, e.unit.x, e.unit.y);
             }
             announceDetected(e.unit);
+            watchDetected(e.unit);
         });
         Events.on(UnitDamageEvent.class, e -> {
             if(e.unit != null && e.unit.team == playerTeam() && e.unit.mining()){
@@ -215,8 +258,12 @@ public class Ra2Announcer extends Mod{
             lowPowerTicks = 0f;
             lastCoreHealth = -1f;
             lastCoreAttackAt = Long.MIN_VALUE;
+            batchWindowStart = -1f;
             pendingLosses.clear();
             detectedTargets.clear();
+            processedGroups.clear();
+            pendingBatches.clear();
+            forceAnnouncedAt.clear();
             AnnouncementOverlay.clear();
         });
 
@@ -269,10 +316,172 @@ public class Ra2Announcer extends Mod{
         }
     }
 
+    /**
+     * Scans enemy units for freshly-issued command batches. Mindustry's commandUnits packet is
+     * forwarded to every client and multi-unit commands put all commanded units of the same
+     * physics layer into one CommandAI#group, so a group identity that has not been seen before
+     * is exactly "one control action of the enemy" (same data MindustryX uses to draw command lines).
+     */
+    private void scanCommandGroups(){
+        for(Unit unit : Groups.unit){
+            if(unit.team == playerTeam() || !(unit.controller() instanceof CommandAI ai) || ai.group == null) continue;
+            UnitGroup group = ai.group;
+            if(!processedGroups.add(group)) continue;
+            if(processedGroups.size > FORCE_MAX_GROUPS) processedGroups.clear();
+
+            Seq<BatchedUnit> batch = pendingBatches.get(unit.team.id);
+            if(batch == null){
+                batch = new Seq<>();
+                pendingBatches.put(unit.team.id, batch);
+            }
+            for(Unit commanded : group.units){
+                if(commanded == null || commanded.team != unit.team || isMissile(commanded)
+                || commanded.type == null || commanded.type.estimateDps() <= 0f) continue;
+                batch.add(new BatchedUnit(commanded.type, commanded.x, commanded.y));
+            }
+            if(batchWindowStart < 0f) batchWindowStart = Time.time;
+        }
+    }
+
+    /** Aggregates command batches over a short window (one command can split into ground/air groups), then reports composition. */
+    private void flushForces(boolean force){
+        if(pendingBatches.isEmpty()) return;
+        if(!force && (batchWindowStart < 0f || Time.time - batchWindowStart < FORCE_WINDOW_TICKS)) return;
+        batchWindowStart = -1f;
+
+        long cooldown = Math.max(5, Core.settings.getInt("ra2ann-force-cooldown", 20)) * 1000L;
+        int min = Math.max(1, Core.settings.getInt("ra2ann-force-min", 3));
+
+        for(ObjectMap.Entry<Integer, Seq<BatchedUnit>> entry : pendingBatches){
+            Seq<BatchedUnit> batch = entry.value;
+            if(batch.isEmpty()) continue;
+
+            int total = batch.size;
+            ObjectMap<UnitType, Integer> counts = new ObjectMap<>();
+            float cx = 0f, cy = 0f, bestThreat = 0f;
+            UnitType threat = null;
+            for(BatchedUnit b : batch){
+                counts.put(b.type, counts.get(b.type, 0) + 1);
+                cx += b.x;
+                cy += b.y;
+                float score = b.type.estimateDps() * b.type.health;
+                if(score > bestThreat){
+                    bestThreat = score;
+                    threat = b.type;
+                }
+            }
+            batch.clear();
+
+            UnitType dominant = null;
+            int maxCount = 0, types = counts.size;
+            float dominantThreat = -1f;
+            for(ObjectMap.Entry<UnitType, Integer> c : counts){
+                float score = c.key.estimateDps() * c.key.health;
+                if(c.value > maxCount || (c.value == maxCount && score > dominantThreat)){
+                    dominant = c.key;
+                    maxCount = c.value;
+                    dominantThreat = score;
+                }
+            }
+            if(dominant == null) continue;
+
+            long now = Time.millis();
+            if(now - forceAnnouncedAt.get(entry.key, 0L) < cooldown) continue;
+            forceAnnouncedAt.put(entry.key, now);
+
+            String item = Core.bundle.format("ra2ann.enemy.force.item", dominant.localizedName, maxCount);
+            if(types >= 2 && threat != null && threat != dominant){
+                item += Core.bundle.get("ra2ann.list.separator", ", ")
+                    + Core.bundle.format("ra2ann.enemy.force.threat", threat.localizedName);
+            }
+            String message = Core.bundle.format("ra2ann.enemy.force.line", item);
+            AnnouncementOverlay.show(message, cx / total, cy / total, dominant.uiIcon, item, "ra2ann-enemy-force-color");
+            playForceVoice(dominant);
+        }
+        pendingBatches.clear();
+    }
+
+    private void playForceVoice(UnitType dominant){
+        if(!Core.settings.getBool("ra2ann-enabled", true)
+        || !Core.settings.getBool("ra2ann-enemy-force", true)) return;
+
+        playSound(forceVoiceDedicated ? "ann_enemy_force" : "ann_high_value_warning", "ra2ann-enemy-force", COOLDOWN_LINE);
+        Sound name = sounds.get("name-unit-" + dominant.name.toLowerCase());
+        if(name != null){
+            Sound nameSound = name;
+            Time.run(40f, nameSound::play);
+            //only the fallback sentence is completed by the generic "detected!"
+            if(!forceVoiceDedicated && sounds.containsKey("ann_detected")){
+                Sound detected = sounds.get("ann_detected");
+                Time.run(75f, detected::play);
+            }
+        }
+    }
+
+    /** Matches a unit type against the player-configured watch list (internal or localized names, comma separated). */
+    private boolean watchMatches(UnitType type){
+        if(type == null || !Core.settings.getBool("ra2ann-watch-enabled", true)) return false;
+        String configured = Core.settings.getString("ra2ann-watch-units", "");
+        if(configured == null || configured.trim().isEmpty()) return false;
+        String internal = type.name.toLowerCase();
+        String local = type.localizedName.toLowerCase();
+        for(String item : configured.split("[,，]")){
+            String rule = item.trim().toLowerCase();
+            if(rule.isEmpty()) continue;
+            if(rule.equals(internal) || rule.equals(local)) return true;
+        }
+        return false;
+    }
+
+    private void watchDetected(Unit unit){
+        if(player == null || unit == null || unit.team == playerTeam() || isMissile(unit) || !watchMatches(unit.type)) return;
+        String type = unit.type.name;
+        long now = Time.millis();
+        if(now - detectedTargets.get("watch:" + type, 0L) < COOLDOWN_LINE) return;
+        detectedTargets.put("watch:" + type, now);
+        String name = unit.type.localizedName;
+        AnnouncementOverlay.show(Core.bundle.format("ra2ann.watch.unit.detected", name),
+            unit.x, unit.y, unit.type.uiIcon, name, "ra2ann-watch-color");
+        playWatchVoice("ann_watch_warning", unit.type.name);
+    }
+
+    /** @return true if the destroyed unit belongs to the watch list (announcement or throttle). */
+    private boolean watchKill(Unit unit){
+        if(player == null || unit == null || unit.team == playerTeam() || isMissile(unit) || !watchMatches(unit.type)) return false;
+        String type = unit.type.name;
+        long now = Time.millis();
+        if(now - detectedTargets.get("watchkill:" + type, 0L) < COOLDOWN_LINE) return true;
+        detectedTargets.put("watchkill:" + type, now);
+        String name = unit.type.localizedName;
+        AnnouncementOverlay.show(Core.bundle.format("ra2ann.watch.unit.destroyed", name),
+            unit.x, unit.y, unit.type.uiIcon, name, "ra2ann-watch-color");
+        playWatchVoice("ann_watch_destroyed", unit.type.name);
+        return true;
+    }
+
+    private void playWatchVoice(String sound, String typeName){
+        if(!Core.settings.getBool("ra2ann-enabled", true)
+        || !Core.settings.getBool("ra2ann-watch-enabled", true)) return;
+
+        playSound(sound, "ra2ann-watch-enabled", COOLDOWN_LINE);
+        Sound name = sounds.get("name-unit-" + typeName.toLowerCase());
+        if(name != null){
+            Sound nameSound = name;
+            Time.run(35f, nameSound::play);
+            //the fallback "Warning! Enemy" sentence is completed by the generic "detected!"
+            if(!watchVoiceDedicated && sound.equals("ann_watch_warning") && sounds.containsKey("ann_detected")){
+                Sound detected = sounds.get("ann_detected");
+                Time.run(70f, detected::play);
+            }
+        }
+    }
+
     private void update(){
         if(player == null || !state.isGame() || !timer.get(12f)) return;
 
         flushPendingLosses(false);
+        scanCommandGroups();
+        flushForces(false);
 
         //pre-wave warning, 5 seconds before the next wave
         if(state.rules.waves && state.rules.waveTimer && !state.gameOver && !waveWarned
@@ -386,33 +595,53 @@ public class Ra2Announcer extends Mod{
         }
         if(ready.isEmpty()) return;
 
-        boolean unitSoundPlayed = false;
-        boolean buildingSoundPlayed = false;
-        for(PendingLoss pending : ready){
-            pendingLosses.remove(pending.key());
+        //merge same-kind losses into one card listing up to LOSS_MAX_TYPES entries
+        for(LossKind kind : LossKind.values()){
+            Seq<PendingLoss> kindReady = ready.select(pending -> pending.kind == kind);
+            if(kindReady.isEmpty()) continue;
 
-            String item = Core.bundle.format("ra2ann.loss.item", pending.displayName, pending.count);
-            String messageKey = pending.kind == LossKind.UNIT
-                ? (pending.count == 1 ? "ra2ann.unit.lost.detail" : "ra2ann.unit.lost.batch")
-                : (pending.count == 1 ? "ra2ann.structure.lost.detail" : "ra2ann.structure.lost.batch");
-            String owner = Core.bundle.get("ra2ann.ours", "ours");
-            String message = Core.bundle.format(messageKey, item, owner);
-            float x = pending.count == 0 ? Float.NaN : pending.x / pending.count;
-            float y = pending.count == 0 ? Float.NaN : pending.y / pending.count;
-            boolean enabled = pending.kind == LossKind.UNIT
+            boolean enabled = kind == LossKind.UNIT
                 ? Core.settings.getBool("ra2ann-unit-loss", true)
                 : Core.settings.getBool("ra2ann-building-loss", true);
-            if(!enabled) continue;
-            AnnouncementOverlay.show(message, x, y, pending.icon, item,
-                pending.kind == LossKind.UNIT ? "ra2ann-unit-loss-color" : "ra2ann-building-loss-color");
-
-            if(pending.kind == LossKind.UNIT && !unitSoundPlayed){
-                unitSoundPlayed = true;
-                playSound("ann_unit_lost", "ra2ann-combat", COOLDOWN_UNIT);
-            }else if(pending.kind == LossKind.BUILDING && !buildingSoundPlayed){
-                buildingSoundPlayed = true;
-                playSound("ann_structure_lost", "ra2ann-combat", COOLDOWN_STRUCTURE);
+            if(!enabled){
+                for(PendingLoss pending : kindReady) pendingLosses.remove(pending.key());
+                continue;
             }
+
+            kindReady.sort((a, b) -> Integer.compare(b.count, a.count));
+            int total = 0;
+            float x = 0f, y = 0f;
+            for(PendingLoss pending : kindReady){
+                total += pending.count;
+                x += pending.x * pending.count;
+                y += pending.y * pending.count;
+            }
+
+            StringBuilder items = new StringBuilder();
+            int listed = Math.min(kindReady.size, LOSS_MAX_TYPES);
+            for(int i = 0; i < listed; i++){
+                if(i > 0) items.append(Core.bundle.get("ra2ann.list.separator", ", "));
+                PendingLoss pending = kindReady.get(i);
+                items.append(Core.bundle.format("ra2ann.loss.item", pending.displayName, pending.count));
+            }
+            if(kindReady.size > listed){
+                items.append(Core.bundle.get("ra2ann.list.separator", ", "));
+                items.append(Core.bundle.format("ra2ann.other.types", kindReady.size - listed));
+            }
+
+            String messageKey = kind == LossKind.UNIT ? "ra2ann.unit.lost.batch" : "ra2ann.structure.lost.batch";
+            String owner = Core.bundle.get("ra2ann.ours", "ours");
+            String message = Core.bundle.format(messageKey, items.toString(), owner);
+            PendingLoss top = kindReady.first();
+            AnnouncementOverlay.show(message,
+                total == 0 ? Float.NaN : x / total, total == 0 ? Float.NaN : y / total,
+                top.icon, top.displayName,
+                kind == LossKind.UNIT ? "ra2ann-unit-loss-color" : "ra2ann-building-loss-color");
+
+            if(kind == LossKind.UNIT) playSound("ann_unit_lost", "ra2ann-combat", COOLDOWN_UNIT);
+            else playSound("ann_structure_lost", "ra2ann-combat", COOLDOWN_STRUCTURE);
+
+            for(PendingLoss pending : kindReady) pendingLosses.remove(pending.key());
         }
     }
 
@@ -545,30 +774,23 @@ public class Ra2Announcer extends Mod{
     private void addSettings(){
         ui.settings.addCategory("RA2 Announcer", t -> {
             t.checkPref("ra2ann-enabled", true);
-            t.checkPref("ra2ann-wave", true);
-            t.textPref("ra2ann-wave-color", "ef3d46");
-            t.checkPref("ra2ann-base", true);
-            t.textPref("ra2ann-base-color", "ef3d46");
-            t.checkPref("ra2ann-combat", true);
-            t.textPref("ra2ann-combat-color", "ef3d46");
-            t.checkPref("ra2ann-unit-loss", true);
-            t.textPref("ra2ann-unit-loss-color", "ef3d46");
-            t.checkPref("ra2ann-building-loss", true);
-            t.textPref("ra2ann-building-loss-color", "ef3d46");
-            t.checkPref("ra2ann-high-value-detected", true);
-            t.textPref("ra2ann-high-value-color", "ffb347");
-            t.checkPref("ra2ann-factory-training", true);
-            t.textPref("ra2ann-factory-training-color", "64a0ff");
-            t.checkPref("ra2ann-factory-cancel", true);
-            t.textPref("ra2ann-factory-cancel-color", "ef3d46");
-            t.checkPref("ra2ann-unit-ready", true);
-            t.textPref("ra2ann-unit-ready-color", "64a0ff");
-            t.checkPref("ra2ann-miner-under-attack", true);
-            t.textPref("ra2ann-miner-color", "ffd166");
-            t.checkPref("ra2ann-tech", true);
-            t.textPref("ra2ann-tech-color", "64a0ff");
-            t.checkPref("ra2ann-campaign", true);
-            t.textPref("ra2ann-campaign-color", "64a0ff");
+            categoryRow(t, "ra2ann-wave", "ra2ann-wave-color", "ef3d46");
+            categoryRow(t, "ra2ann-base", "ra2ann-base-color", "ef3d46");
+            categoryRow(t, "ra2ann-combat", "ra2ann-combat-color", "ef3d46");
+            categoryRow(t, "ra2ann-unit-loss", "ra2ann-unit-loss-color", "ef3d46");
+            categoryRow(t, "ra2ann-building-loss", "ra2ann-building-loss-color", "ef3d46");
+            categoryRow(t, "ra2ann-high-value-detected", "ra2ann-high-value-color", "ffb347");
+            categoryRow(t, "ra2ann-factory-training", "ra2ann-factory-training-color", "64a0ff");
+            categoryRow(t, "ra2ann-factory-cancel", "ra2ann-factory-cancel-color", "ef3d46");
+            categoryRow(t, "ra2ann-unit-ready", "ra2ann-unit-ready-color", "64a0ff");
+            categoryRow(t, "ra2ann-miner-under-attack", "ra2ann-miner-color", "ffd166");
+            categoryRow(t, "ra2ann-tech", "ra2ann-tech-color", "64a0ff");
+            categoryRow(t, "ra2ann-campaign", "ra2ann-campaign-color", "64a0ff");
+            categoryRow(t, "ra2ann-enemy-force", "ra2ann-enemy-force-color", "ff7e46");
+            t.sliderPref("ra2ann-force-min", 3, 2, 10, 1, value -> Integer.toString(value));
+            t.sliderPref("ra2ann-force-cooldown", 20, 5, 120, 5, value -> value + "s");
+            categoryRow(t, "ra2ann-watch-enabled", "ra2ann-watch-color", "b47fff");
+            t.textPref("ra2ann-watch-units", "");
             t.checkPref("ra2ann-ui-enabled", true);
             t.checkPref("ra2ann-marker-enabled", true);
             t.sliderPref("ra2ann-ui-width", 320, 240, 560, 20, value -> value + "px");
@@ -587,9 +809,8 @@ public class Ra2Announcer extends Mod{
             t.sliderPref("ra2ann-line-width", 3, 1, 6, 1, value -> value + "px");
             t.sliderPref("ra2ann-line-alpha", 95, 35, 100, 5, value -> value + "%");
             t.checkPref("ra2ann-line-solid", true);
-            t.textPref("ra2ann-card-color", "b51f2a");
-            t.textPref("ra2ann-accent-color", "ef3d46");
-            t.textPref("ra2ann-line-color", "ef3d46");
+            colorOnlyRow(t, "ra2ann-card-color", "b51f2a");
+            colorOnlyRow(t, "ra2ann-accent-color", "ef3d46");
             t.button(Core.bundle.get("ra2ann.testline", "Test announcement"), () -> {
                 var keys = sounds.keys().toSeq();
                 if(keys.size > 0){
@@ -600,9 +821,127 @@ public class Ra2Announcer extends Mod{
         });
     }
 
+    /** One settings row: category toggle filling the left side, inline color swatch on the right. */
+    private void categoryRow(Table settings, String checkKey, String colorKey, String colorDefault){
+        Table row = new Table();
+        //vanilla-style checkbox row (mindustry.ui.Elems does not exist in v155.4)
+        Button check = new Button(Styles.grayt);
+        check.background(Styles.grayPanel);
+        check.margin(10f);
+        check.add(new Image()).update(i -> i.setDrawable(check.isOver()
+            ? (check.isChecked() ? Tex.checkOnOver : Tex.checkOver)
+            : check.isChecked() ? Tex.checkOn : Tex.checkOff))
+            .size(32f).padRight(8f).padLeft(-4f);
+        check.add(Core.bundle.get("setting." + checkKey + ".name"));
+        check.setChecked(Core.settings.getBool(checkKey, true));
+        check.clicked(() -> Core.settings.put(checkKey, check.isChecked()));
+        check.left();
+        row.add(check).growX().height(45f).left();
+        addColorSwatch(row, colorKey, colorDefault);
+        settings.add(row).minWidth(Math.min(500f, Core.graphics.getWidth() / 1.2f / Scl.scl(1f)))
+            .fillX().height(45f).left().padTop(7f);
+        settings.row();
+    }
+
+    private void colorOnlyRow(Table settings, String colorKey, String colorDefault){
+        Table row = new Table();
+        row.add(Core.bundle.get("setting." + colorKey + ".name")).growX().height(45f).left().padLeft(10f);
+        addColorSwatch(row, colorKey, colorDefault);
+        settings.add(row).minWidth(Math.min(500f, Core.graphics.getWidth() / 1.2f / Scl.scl(1f)))
+            .fillX().height(45f).left().padTop(7f);
+        settings.row();
+    }
+
+    private void addColorSwatch(Table row, String colorKey, String colorDefault){
+        String value = Core.settings.getString(colorKey, colorDefault);
+        TextButton swatch = row.button(value, Styles.flatTogglet, () -> showColorEditor(colorKey, colorDefault))
+            .width(112f).height(45f).padLeft(6f).get();
+        swatch.getLabel().setColor(parseHexOr(value, colorDefault));
+        colorSwatches.put(colorKey, swatch);
+    }
+
+    private void showColorEditor(String key, String colorDefault){
+        String current = Core.settings.getString(key, colorDefault);
+        BaseDialog dialog = new BaseDialog(Core.bundle.get("ra2ann.color.title", "Announcement color"));
+        dialog.cont.margin(16f);
+
+        Table top = new Table();
+        Image preview = new Image(Tex.whiteui);
+        preview.setColor(parseHexOr(current, colorDefault));
+        TextField field = new TextField(current == null ? "" : current, Styles.defaultField);
+        field.setMessageText(Core.bundle.get("ra2ann.color.hint", "ef3d46"));
+        field.addListener(new ChangeListener(){
+            @Override
+            public void changed(ChangeListener.ChangeEvent event, Element actor){
+                preview.setColor(parseHexOr(field.getText(), colorDefault));
+            }
+        });
+        top.add(preview).size(48f).padRight(12f);
+        top.add(field).width(200f).height(48f);
+        dialog.cont.add(top).row();
+
+        Table grid = new Table();
+        for(int i = 0; i < colorPresets.length; i++){
+            String hex = colorPresets[i];
+            TextButton preset = grid.button(hex, Styles.flatTogglet, () -> field.setText(hex)).size(76f, 40f).get();
+            preset.getLabel().setColor(Color.valueOf(hex));
+            if((i + 1) % 7 == 0) grid.row();
+        }
+        dialog.cont.add(grid).padTop(10f).row();
+
+        Label invalid = new Label(Core.bundle.get("ra2ann.color.invalid", "Invalid hex color"), Styles.outlineLabel);
+        invalid.setColor(Color.scarlet);
+        invalid.visible = false;
+        dialog.cont.add(invalid).padTop(6f).row();
+
+        dialog.buttons.defaults().width(120f);
+        dialog.buttons.button("@ok", () -> {
+            String value = field.getText().trim().replace("#", "").toLowerCase();
+            if(value.matches("[0-9a-f]{6}([0-9a-f]{2})?")){
+                Core.settings.put(key, value);
+                TextButton swatch = colorSwatches.get(key);
+                if(swatch != null){
+                    swatch.setText(value);
+                    swatch.getLabel().setColor(parseHexOr(value, colorDefault));
+                }
+                dialog.hide();
+            }else{
+                invalid.visible = true;
+            }
+        });
+        dialog.buttons.button("@cancel", dialog::hide);
+        dialog.show();
+    }
+
+    private static Color parseHexOr(String value, String fallback){
+        if(value != null){
+            String clean = value.trim().replace("#", "");
+            if(clean.length() == 6 || clean.length() == 8){
+                try{
+                    return Color.valueOf(clean);
+                }catch(Throwable ignored){
+                }
+            }
+        }
+        return Color.valueOf(fallback);
+    }
+
     private enum LossKind{
         UNIT,
         BUILDING
+    }
+
+    /** Immutable snapshot of one commanded unit, taken at scan time (units may die before the window flushes). */
+    private static class BatchedUnit{
+        final UnitType type;
+        final float x;
+        final float y;
+
+        BatchedUnit(UnitType type, float x, float y){
+            this.type = type;
+            this.x = x;
+            this.y = y;
+        }
     }
 
     private static class PendingLoss{

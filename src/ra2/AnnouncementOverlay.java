@@ -342,7 +342,11 @@ public final class AnnouncementOverlay{
 
         @Override
         public void draw(){
-            if(!Core.settings.getBool("ra2ann-line-enabled", true)
+            //lines anchor onto cards; with the side panel off the cards keep stale positions,
+            //which used to leave a stray line on screen
+            if(!Core.settings.getBool("ra2ann-ui-enabled", true)
+            || !root.cards.visible
+            || !Core.settings.getBool("ra2ann-line-enabled", true)
             || !Core.settings.getBool("ra2ann-marker-enabled", true)) return;
             Draw.z(Layer.overlayUI - 1f);
             Color outline = Color.valueOf("111111");

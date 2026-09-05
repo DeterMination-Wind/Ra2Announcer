@@ -2,10 +2,12 @@
 """Generate RA2-style English voice announcement ogg files for the Ra2Announcer mod.
 
 Usage:
-    python tools/generate_voice.py [voice]
+    python tools/generate_voice.py [voice] [line names...]
 
 Outputs to assets/sounds/ann_*.ogg (mono, Vorbis, loudness-normalized).
 Requires: pip install edge-tts ; ffmpeg in PATH.
+Pass one or more line names (e.g. ann_enemy_force) to regenerate only those;
+without names every line is regenerated.
 """
 
 import asyncio
@@ -37,6 +39,9 @@ LINES = {
     "ann_miner_attack": "Ore miner is under attack!",
     "ann_high_value_warning": "Warning! Enemy",
     "ann_detected": "detected!",
+    "ann_enemy_force": "Warning! Enemy strike force approaching.",
+    "ann_watch_warning": "Warning! Priority enemy target detected.",
+    "ann_watch_destroyed": "Priority target destroyed.",
     "ann_research": "New technology acquired.",
     "ann_victory": "Mission accomplished.",
     "ann_defeat": "Mission failed.",
@@ -91,12 +96,19 @@ def to_ogg(name: str, tmp_mp3: str, out_ogg: str) -> None:
 
 
 async def main() -> None:
-    voice = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_VOICE
+    args = sys.argv[1:]
+    voice = args[0] if args else DEFAULT_VOICE
+    only = set(args[1:])
     os.makedirs(OUT_DIR, exist_ok=True)
     tmp_mp3 = os.path.join(OUT_DIR, "_tmp.mp3")
     print(f"voice: {voice}")
     lines = dict(LINES)
     lines.update(load_name_lines())
+    if only:
+        unknown = only - lines.keys()
+        if unknown:
+            sys.exit(f"unknown line names: {', '.join(sorted(unknown))}")
+        lines = {name: text for name, text in lines.items() if name in only}
     for name, text in lines.items():
         out_ogg = os.path.join(OUT_DIR, f"{name}.ogg")
         await synth(name, text, voice, tmp_mp3)
