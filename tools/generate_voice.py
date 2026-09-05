@@ -13,6 +13,8 @@ import os
 import shutil
 import subprocess
 import sys
+import json
+import re
 
 import edge_tts
 
@@ -27,8 +29,14 @@ LINES = {
     "ann_unit_lost": "Unit lost.",
     "ann_structure_lost": "Structure destroyed.",
     "ann_enemy_base": "Enemy base destroyed.",
-    "ann_guardian": "Guardian detected.",
-    "ann_guardian_kill": "Guardian destroyed.",
+    "ann_boss": "Boss detected.",
+    "ann_boss_kill": "Boss destroyed.",
+    "ann_training": "Training.",
+    "ann_unit_ready": "Unit ready.",
+    "ann_cancel": "Cancel.",
+    "ann_miner_attack": "Ore miner is under attack!",
+    "ann_high_value_warning": "Warning! Enemy",
+    "ann_detected": "detected!",
     "ann_research": "New technology acquired.",
     "ann_victory": "Mission accomplished.",
     "ann_defeat": "Mission failed.",
@@ -39,7 +47,26 @@ LINES = {
     "ann_low_power": "Low power.",
 }
 
-OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "sounds")
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+OUT_DIR = os.path.join(ROOT_DIR, "assets", "sounds")
+NAMES_FILE = os.path.join(os.path.dirname(__file__), "mindustry_names.json")
+
+
+def safe_name(value: str) -> str:
+    value = re.sub(r"[^a-zA-Z0-9._-]+", "-", value.strip().lower())
+    return value.strip("-") or "unknown"
+
+
+def load_name_lines():
+    if not os.path.exists(NAMES_FILE):
+        return {}
+    with open(NAMES_FILE, encoding="utf-8") as stream:
+        data = json.load(stream)
+    return {
+        f"name-{kind}-{safe_name(name)}": text
+        for kind, entries in data.items()
+        for name, text in entries.items()
+    }
 
 
 async def synth(name: str, text: str, voice: str, tmp_mp3: str) -> None:
@@ -68,7 +95,9 @@ async def main() -> None:
     os.makedirs(OUT_DIR, exist_ok=True)
     tmp_mp3 = os.path.join(OUT_DIR, "_tmp.mp3")
     print(f"voice: {voice}")
-    for name, text in LINES.items():
+    lines = dict(LINES)
+    lines.update(load_name_lines())
+    for name, text in lines.items():
         out_ogg = os.path.join(OUT_DIR, f"{name}.ogg")
         await synth(name, text, voice, tmp_mp3)
         to_ogg(name, tmp_mp3, out_ogg)

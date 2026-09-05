@@ -2,7 +2,7 @@
 displayName: "RA2 Announcer"
 
 #the internal name of your mod
-name: "ra2-announcer"
+name: "ra2-announcer-dev"
 
 #your name
 author: "codex"
@@ -14,7 +14,7 @@ main: "ra2.Ra2Announcer"
 description: "RA2-style English voice announcements for game events (waves, base attacks, unit losses, research, victories)."
 
 #the mod version
-version: 1.0.1
+version: 0.0.0
 
 #hide this mod from the in-game mod browser
 hidden: true
