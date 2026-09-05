@@ -85,7 +85,14 @@ Requires `ffmpeg` in PATH. Outputs loudness-normalized mono OGG files into `asse
 ```powershell
 ./gradlew jar
 # artifact: build/libs/Ra2AnnouncerDesktop.jar
+
+# cross-platform (desktop + Android dex) artifact — needs ANDROID_HOME pointing at an
+# Android SDK with an installed platform, and build-tools' d8(.bat) in PATH:
+./gradlew deploy
+# artifact: build/libs/Ra2Announcer.jar — contains classes.dex for Android clients
 ```
+
+Build with a **JDK 17** toolchain (`JAVA_HOME` → JDK 17). JDK 21+ `javac` emits `MethodParameters` attributes with unnamed entries for anonymous-class constructors, which the d8 in Android build-tools 34.0.0 cannot parse (NPE crash during dexing).
 
 ## Notes
 
