@@ -86,6 +86,8 @@ public class Ra2Announcer extends Mod{
     private final ObjectMap<String, TextButton> colorSwatches = new ObjectMap<>();
     private final Interval timer = new Interval(3);
 
+    private TextButton voiceButton;
+
     private boolean waveWarned;
     private boolean coreCriticalReported;
     private boolean wasWaiting;
@@ -107,6 +109,7 @@ public class Ra2Announcer extends Mod{
     }
 
     private void loadSounds(){
+        sounds.clear();
         String[] names = {
             "ann_wave", "ann_wave_warn", "ann_wave_cleared",
             "ann_core_attack", "ann_core_critical",
@@ -134,13 +137,32 @@ public class Ra2Announcer extends Mod{
         if(!watchVoiceDedicated) loadSoundAlias("ann_watch_warning", "ann_high_value_warning");
     }
 
-    private void loadSound(String name){
-        try{
-            Sound sound = tree.loadSound(name);
-            if(sound != null && sound != Sounds.none) sounds.put(name, sound);
-        }catch(Throwable t){
-            Log.err("Failed to load announcement sound: @", name);
+    private boolean voiceZh(){
+        return Core.settings.getBool("ra2ann-voice-zh", false);
+    }
+
+    /** Loads a sound under its lookup key, preferring the localized file (ann_zh_ prefix / name-*-zh- infix) with English fallback. */
+    private void loadSound(String key){
+        String file = key;
+        if(voiceZh()){
+            file = key.startsWith("ann_") ? "ann_zh_" + key.substring(4)
+                : key.startsWith("name-unit-") || key.startsWith("name-block-") ? localizedNameFile(key) : key;
         }
+        Sound sound = null;
+        try{
+            sound = tree.loadSound(file);
+            if((sound == null || sound == Sounds.none) && !file.equals(key)) sound = tree.loadSound(key);
+        }catch(Throwable t){
+            Log.err("Failed to load announcement sound: @", file);
+        }
+        if(sound != null && sound != Sounds.none) sounds.put(key, sound);
+    }
+
+    /** name-unit-dagger -> name-unit-zh-dagger, name-block-foreshadow -> name-block-zh-foreshadow */
+    private static String localizedNameFile(String key){
+        boolean unit = key.startsWith("name-unit-");
+        String suffix = key.substring(unit ? "name-unit-".length() : "name-block-".length());
+        return (unit ? "name-unit-zh-" : "name-block-zh-") + suffix;
     }
 
     private void loadSoundAlias(String name, String source){
@@ -774,6 +796,7 @@ public class Ra2Announcer extends Mod{
     private void addSettings(){
         ui.settings.addCategory("RA2 Announcer", t -> {
             t.checkPref("ra2ann-enabled", true);
+            voiceLanguageRow(t);
             categoryRow(t, "ra2ann-wave", "ra2ann-wave-color", "ef3d46");
             categoryRow(t, "ra2ann-base", "ra2ann-base-color", "ef3d46");
             categoryRow(t, "ra2ann-combat", "ra2ann-combat-color", "ef3d46");
@@ -819,6 +842,25 @@ public class Ra2Announcer extends Mod{
                 }
             }).width(220f);
         });
+    }
+
+    /** Voice language row: English / 中文 toggle on the right, reloads the sound pack on change. */
+    private void voiceLanguageRow(Table settings){
+        Table row = new Table();
+        row.add(Core.bundle.get("setting.ra2ann-voice-language.name")).growX().height(45f).left().padLeft(10f);
+        TextButton btn = row.button(voiceLabel(), Styles.flatTogglet, () -> {
+            Core.settings.put("ra2ann-voice-zh", !voiceZh());
+            if(voiceButton != null) voiceButton.setText(voiceLabel());
+            loadSounds();
+        }).width(112f).height(45f).padLeft(6f).get();
+        voiceButton = btn;
+        settings.add(row).minWidth(Math.min(500f, Core.graphics.getWidth() / 1.2f / Scl.scl(1f)))
+            .fillX().height(45f).left().padTop(7f);
+        settings.row();
+    }
+
+    private String voiceLabel(){
+        return voiceZh() ? "中文" : "English";
     }
 
     /** One settings row: category toggle filling the left side, inline color swatch on the right. */

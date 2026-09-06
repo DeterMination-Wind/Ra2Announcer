@@ -48,6 +48,7 @@ The fixed event lines include wave, base, combat, factory, mining, Boss, and hig
 Settings > **RA2 Announcer**:
 
 - **Enabled** — master switch.
+- **Voice language** — English / 中文 toggle. Switching reloads the sound pack immediately; missing localized clips fall back to English. Chinese lines are `ann_zh_*.ogg` plus Chinese unit/building names (`name-*-zh-*.ogg`), spoken by the voice configured at generation time.
 - Per-category toggles: Wave alerts, Base alerts, Combat alerts, Tech & results, Campaign alerts.
 - **Test announcement** — plays a random line so you can check volume.
 - **Side announcement panel** — keeps several local alert cards on the left side instead of replacing every message immediately.
@@ -76,6 +77,11 @@ Regenerate all audio with a different [edge-tts](https://github.com/rany2/edge-t
 pip install edge-tts
 python tools/generate_voice.py "en-US-ChristopherNeural"   # or any edge-tts voice
 python tools/generate_voice.py "en-US-ChristopherNeural" ann_enemy_force   # regenerate single lines
+
+# Chinese voice pack (ann_zh_* + Chinese names). tools/make_zh_names.py regenerates the
+# Chinese name vocabulary from Mindustry's own zh_CN bundle; rerun it after game updates.
+python tools/make_zh_names.py
+python tools/generate_voice.py "zh-CN-YunjianNeural" zh
 ```
 
 Requires `ffmpeg` in PATH. Outputs loudness-normalized mono OGG files into `assets/sounds/`.
