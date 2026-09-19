@@ -1,17 +1,17 @@
 #the mod name as displayed in-game
-displayName: "RA2 Announcer"
+displayName: "RA2 Announcer 索菲亚战场播报"
 
 #the internal name of your mod
 name: "ra2-announcer-dev"
 
 #your name
-author: "codex"
+author: "DeterMination-Wind"
 
 #the fully qualified main class of the mod
 main: "ra2.Ra2Announcer"
 
 #the mod description as seen in the mod dialog
-description: "RA2-style English voice announcements for game events (waves, base attacks, unit losses, research, victories)."
+description: "Red Alert 2 battlefield announcer with the original Sophia (Zofia) voice: waves, base alerts, rally and core-threat detection, manual control marking, unit/building loss reports with callout names, production and high-value target alerts, plus a right-side event feed. 红警2索菲亚语音战场播报:波次/基地警报、敌方集结与核心威胁、单控标点、带具体类别的损失与生产播报、右侧事件卡片。"
 
 #the mod version
 version: 0.0.0
@@ -20,7 +20,7 @@ version: 0.0.0
 hidden: true
 
 #the minimum game build required to run this mod
-minGameVersion: 154
+minGameVersion: 159
 
 #this is a java mod
 java: true
