@@ -118,7 +118,7 @@ public class Ra2Announcer extends Mod{
             waveWarned = false;
             checkGuardian();
             if(!Core.settings.getBool("ra2ann-wave", true)) return;
-            showAtCore("ra2ann.wave.line", 30_000L, "ann_wave", "ra2ann-wave-color", "ann_wave");
+            announceAtCore(Core.bundle.format("ra2ann.wave.line", state.wave), 30_000L, "ann_wave", "ra2ann-wave-color", "ann_wave");
         });
 
         Events.on(WorldLoadEvent.class, e -> {
@@ -214,7 +214,8 @@ public class Ra2Announcer extends Mod{
             UnitType unit = plan >= 0 && plan < factory.plans.size ? factory.plans.get(plan).unit : null;
 
             if(unit == null){
-                showCard(Core.bundle.get("ra2ann.cancel.line", "Cancelled."), build.x, build.y, null, null, "ra2ann-factory-color");
+                String factoryName = build.block.localizedName;
+                showCard(Core.bundle.format("ra2ann.cancel.line", factoryName), build.x, build.y, build.block.uiIcon, factoryName, "ra2ann-factory-color");
                 Announcer.play(Announcer.P_INFO, 6_000L, "ann_cancel", "ann_cancel");
                 return;
             }
@@ -225,7 +226,8 @@ public class Ra2Announcer extends Mod{
 
         Events.on(UnlockEvent.class, e -> {
             if(!Core.settings.getBool("ra2ann-research", true)) return;
-            showAtCore("ra2ann.research.line", COOLDOWN_ALERT, "ann_research", "ra2ann-info-color", "ann_research");
+            String name = e.content == null ? Core.bundle.get("ra2ann.unknown.target", "?") : e.content.localizedName;
+            announceAtCore(Core.bundle.format("ra2ann.research.line", name), COOLDOWN_ALERT, "ann_research", "ra2ann-info-color", "ann_research");
         });
 
         Events.on(WinEvent.class, e -> {
@@ -269,14 +271,14 @@ public class Ra2Announcer extends Mod{
         && state.wavetime > 0f && state.wavetime <= 5f * 60f){
             waveWarned = true;
             if(Core.settings.getBool("ra2ann-wave", true)){
-                showAtCore("ra2ann.wave.warn.line", COOLDOWN_ALERT, "ann_wave_warn", "ra2ann-wave-color", "ann_wave_warn");
+                announceAtCore(Core.bundle.format("ra2ann.wave.warn.line", state.wave + 1), COOLDOWN_ALERT, nextWaveLine(), "ra2ann-wave-color", "ann_wave_warn");
             }
         }
 
         //波次清空
         boolean waiting = logic.isWaitingWave();
         if(wasWaiting && !waiting && state.rules.waves && Core.settings.getBool("ra2ann-wave", true)){
-            showAtCore("ra2ann.wave.cleared.line", COOLDOWN_ALERT, "ann_wave_cleared", "ra2ann-wave-color", "ann_wave_cleared");
+            announceAtCore(Core.bundle.format("ra2ann.wave.cleared.line", state.wave), COOLDOWN_ALERT, "ann_wave_cleared", "ra2ann-wave-color", "ann_wave_cleared");
         }
         wasWaiting = waiting;
 
@@ -350,8 +352,9 @@ public class Ra2Announcer extends Mod{
                     if((i + 2) - state.wave == 1){
                         UnitType type = group.type;
                         String line = type != null && type.flying ? "ann_force_air" : "ann_boss";
-                        showAtCore("ra2ann.boss.line", COOLDOWN_ALERT, line, "ra2ann-attack-color",
-                            "ann_boss", nameKey(type));
+                        String name = type == null ? Core.bundle.get("ra2ann.unknown.target", "?") : type.localizedName;
+                        announceAtCore(Core.bundle.format("ra2ann.boss.line", name), COOLDOWN_ALERT, line,
+                            "ra2ann-attack-color", "ann_boss", nameKey(type));
                     }
                     return;
                 }
@@ -501,6 +504,25 @@ public class Ra2Announcer extends Mod{
         return type.health >= 1000f ? "ann_force_armor" : "ann_force_infantry";
     }
 
+    /**
+     * Category line for the wave that is about to start, taken from the actual spawn composition.
+     * 语音不要求准确,但也不该说反 —— 空中波次不该播“装甲营”。准确信息仍在卡片(波次号)里。
+     */
+    private String nextWaveLine(){
+        int ground = 0, air = 0, naval = 0;
+        for(SpawnGroup group : state.rules.spawns){
+            if(group.type == null) continue;
+            int count = group.getSpawned(state.wave); // 下一个波次的 0 基索引就是当前波号
+            if(count <= 0) continue;
+            if(group.type.naval) naval += count;
+            else if(group.type.flying) air += count;
+            else ground += count;
+        }
+        if(naval > ground && naval >= air) return "ann_force_naval";
+        if(air > ground && air > naval) return "ann_force_air";
+        return ground > 0 ? "ann_force_armor" : "ann_wave_warn";
+    }
+
     private String sectorName(mindustry.type.Sector sector){
         try{
             String name = sector == null ? null : sector.name();
@@ -511,24 +533,30 @@ public class Ra2Announcer extends Mod{
     }
 
     private void showAtCore(String messageKey, long cooldown, String sound, String colorKey, String cooldownKey){
-        float x = Float.NaN, y = Float.NaN;
-        if(player != null && player.team() != null && player.team().core() != null){
-            x = player.team().core().x;
-            y = player.team().core().y;
-        }
-        showCard(Core.bundle.get(messageKey, sound), x, y, null, null, colorKey);
-        Announcer.play(Announcer.P_ALARM, cooldown, cooldownKey, sound);
+        announceAtCore(Core.bundle.get(messageKey, sound), cooldown, sound, colorKey, cooldownKey);
     }
 
-    /** Same as {@link #showAtCore} but chains the (optional) type name after the sentence. */
-    private void showAtCore(String messageKey, long cooldown, String sound, String colorKey, String cooldownKey, String nameClip){
+    /**
+     * 卡片文字 + 语音一起播报:卡片负责“准确播报”(具体名称、数量、波及对象),
+     * 语音只播索菲亚的固定台词,名称片段由 {@code ra2ann-voice-names} 决定是否附上。
+     */
+    private void announceAtCore(String message, long cooldown, String sound, String colorKey, String cooldownKey, String... nameClips){
         float x = Float.NaN, y = Float.NaN;
         if(player != null && player.team() != null && player.team().core() != null){
             x = player.team().core().x;
             y = player.team().core().y;
         }
-        showCard(Core.bundle.get(messageKey, sound), x, y, null, null, colorKey);
-        Announcer.chain(Announcer.P_ALARM, cooldown, cooldownKey, sound, nameClip);
+        announceAt(message, x, y, cooldown, sound, colorKey, cooldownKey, nameClips);
+    }
+
+    private void announceAt(String message, float x, float y, long cooldown, String sound, String colorKey, String cooldownKey, String... nameClips){
+        showCard(message, x, y, null, null, colorKey);
+        Seq<String> keys = new Seq<>();
+        keys.add(sound);
+        for(String clip : nameClips){
+            if(clip != null) keys.add(clip);
+        }
+        Announcer.chain(Announcer.P_ALARM, cooldown, cooldownKey, keys.toArray(String.class));
     }
 
     private void showCard(String message, float x, float y, TextureRegion icon, String markerText, String colorKey){
@@ -546,6 +574,7 @@ public class Ra2Announcer extends Mod{
 
         rowTitle(table, "ra2ann.category.voice");
         nameLangRow(table);
+        table.checkPref("ra2ann-voice-names", false);
         table.sliderPref("ra2ann-voice-volume", 100, 0, 100, 5, value -> value + "%");
         table.sliderPref("ra2ann-voice-gap", 2, 0, 8, 1, value -> Core.bundle.format("ra2ann.seconds", value));
 
@@ -590,6 +619,8 @@ public class Ra2Announcer extends Mod{
         table.checkPref("ra2ann-marker-enabled", true);
         table.checkPref("ra2ann-line-enabled", true);
         table.checkPref("ra2ann-line-solid", true);
+        table.sliderPref("ra2ann-toast-mode", 1, 0, 2, 1, this::toastModeLabel);
+        table.sliderPref("ra2ann-toast-duration", 5, 2, 12, 1, value -> Core.bundle.format("ra2ann.seconds", value));
         table.sliderPref("ra2ann-ui-width", 320, 240, 560, 20, value -> value + "px");
         table.sliderPref("ra2ann-ui-scale", 100, 80, 160, 5, value -> value + "%");
         table.sliderPref("ra2ann-ui-opacity", 85, 30, 100, 5, value -> value + "%");
@@ -642,6 +673,12 @@ public class Ra2Announcer extends Mod{
         if(nameLangButton == null) return;
         String current = Core.bundle.get("en".equals(Announcer.nameLang()) ? "ra2ann.lang.en" : "ra2ann.lang.zh", "?");
         nameLangButton.setText(Core.bundle.format("ra2ann.lang.current", current));
+    }
+
+    /** 原版提示框模式:0 关闭 / 1 卡片关闭时兜底 / 2 每次播报都弹。 */
+    private String toastModeLabel(int value){
+        if(value <= 0) return Core.bundle.get("ra2ann.toast.off", "off");
+        return Core.bundle.get(value == 1 ? "ra2ann.toast.fallback" : "ra2ann.toast.always", "?");
     }
 
     private void rowTitle(Table table, String bundleKey){

@@ -83,6 +83,19 @@ public final class Announcer{
         return "en".equals(Core.settings.getString("ra2ann-name-lang", "zh")) ? "en" : "zh";
     }
 
+    /**
+     * Whether the voice also reads the specific unit/building name.
+     * 需求:语音不需要准确播报,准确播报由事件卡片/提示框负责 —— 默认关闭,
+     * 语音只保留索菲亚的固定台词(顺便缩短播报、降低频率感)。
+     */
+    public static boolean speakNames(){
+        return Core.settings.getBool("ra2ann-voice-names", false);
+    }
+
+    private static boolean isNameKey(String key){
+        return key.startsWith("name-unit-") || key.startsWith("name-block-");
+    }
+
     public static void load(){
         reload();
     }
@@ -171,9 +184,11 @@ public final class Announcer{
         }
 
         float at = time + 2f;
+        boolean speakNames = speakNames();
         Seq<PendingClip> queued = new Seq<>(MAX_CHAIN);
         for(String key : keys){
             if(key == null) continue;
+            if(!speakNames && isNameKey(key)) continue;
             Sound sound = sounds.get(key);
             if(sound == null || sound == Sounds.none) continue;
             if(time - lastClipAt.get(key, -1_000_000f) < MIN_REPLAY) continue;

@@ -55,8 +55,14 @@ public final class EventFeedOverlay{
 
     public static void show(String message, float worldX, float worldY, TextureRegion icon, String markerText, String colorKey){
         if(message == null || message.trim().isEmpty()) return;
-        if(!Core.settings.getBool("ra2ann-ui-enabled", true)
-        && !Core.settings.getBool("ra2ann-marker-enabled", true)) return;
+
+        boolean cards = Core.settings.getBool("ra2ann-ui-enabled", true);
+        boolean markers = Core.settings.getBool("ra2ann-marker-enabled", true);
+
+        // 需求:准确的播报内容由提示框承担 —— 语音不需要准确,所以准确信息不能只活在语音里。
+        // 卡片被关掉时用原版提示框兜底;也可以设置成每次播报都额外弹一条。
+        if(toastMode() >= 2 || (!cards && toastMode() >= 1)) toast(message);
+        if(!cards && !markers) return;
 
         ensureAttached();
         if(root == null) return;
@@ -70,6 +76,20 @@ public final class EventFeedOverlay{
 
         root.add(new Entry(message, markerText == null ? shortText(message) : markerText,
             worldX, worldY, hasPosition, icon, colorKey, now, now + panelDuration, now + markerDuration));
+    }
+
+    /** 0 = 关闭,1 = 卡片关闭时兜底,2 = 每次播报都弹。 */
+    private static int toastMode(){
+        return Mathf.clamp(Core.settings.getInt("ra2ann-toast-mode", 1), 0, 2);
+    }
+
+    /** Vanilla top-of-screen notification; the accurate record of an event when cards are off. */
+    private static void toast(String message){
+        if(ui == null || !activeGame()) return;
+        try{
+            ui.showInfoToast(message, Math.max(2f, Core.settings.getInt("ra2ann-toast-duration", 5)));
+        }catch(Throwable ignored){
+        }
     }
 
     public static void clear(){

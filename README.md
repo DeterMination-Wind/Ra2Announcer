@@ -6,23 +6,32 @@ Mindustry 客户端 mod:用**红警2原版副官索菲亚(Zofia)的语音**播�
 
 ## 播报内容
 
-| 类别 | 触发 | 语音(索菲亚原声) | 附带的具体类别 |
+| 类别 | 触发 | 语音(索菲亚原声,允许泛化) | 提示框里的准确信息 |
 |---|---|---|---|
-| 波次 | 新一波开始 / 前 5 秒预警 / 波次清空 | Enemy forces in your area / armor battalion detected / Objective complete | — |
-| 基地 | 开局建基地 / 核心受击 / 核心告急 / 反应堆熔毁 / 持续缺电 | Battlefield Control Standby / Our base is under attack / Base defenses offline / extremely vulnerable here / low power | — |
-| 损失 | 我方单位或建筑被摧毁 | Unit lost / Critical structure lost | **朗读具体单位/建筑名**,卡片列出 `名称×数量、…` |
-| 受袭 | 我方单位被击中 | Be warned, comrade general(采矿单位走 miner under attack) | **朗读该单位名**,卡片聚合 `名称×数量` |
-| 生产 | 兵厂开始训练 / 生产完成 | training / Unit ready | **朗读该单位名** |
+| 波次 | 新一波开始 / 前 5 秒预警 / 波次清空 | Enemy forces in your area / armor battalion detected / Objective complete | 第 N 波:敌方部队来袭! / 警告:第 N+1 波即将到来! / 第 N 波已清除。 |
+| 基地 | 开局建基地 / 核心受击 / 核心告急 / 反应堆熔毁 / 持续缺电 | Battlefield Control Standby / Our base is under attack / Base defenses offline / extremely vulnerable here / low power | 事件描述 |
+| 损失 | 我方单位或建筑被摧毁 | Unit lost / Critical structure lost | 我方单位损失 / 我方建筑被摧毁:`名称×数量、…` |
+| 受袭 | 我方单位被击中 | Be warned, comrade general(采矿单位走 miner under attack) | 我方单位受袭 / 采矿单位受袭:`名称×数量` |
+| 生产 | 兵厂开始训练 / 生产完成 / 取消 | training / Unit ready / Cancelled | 开始训练:单位名 / 单位就绪:名称×数量 / 已取消生产:工厂名 |
 | 集结 | 敌方成批控兵,或终点指向我方核心 | infantry/armor/air/fleet detected(按主力兵种选台词) | 主力单位名 + 数量 + 最高威胁类型 |
-| 单控 | 敌方或队友手动接管单位/炮塔/建筑、指挥建筑 | 分类台词 / Reinforcements have arrived / Structure garrisoned | **朗读被接管对象的名字** |
-| 高价值 | 规则命中的敌方单位/建筑出现或被摧毁 | 分类台词 / Beacon detected / Critical unit lost | **朗读目标名** |
-| 自选单位 | 名单内敌方单位出现 / 被消灭 | 同上 | **朗读目标名** |
-| 科技与战役 | 解锁科技 / 区块被入侵 / 区块占领 | New technology acquired / Enemy forces in your area / assumed command of this base | 区块名 |
-| 胜负 | 胜利 / 失败 | Mission accomplished / Mission failed | — |
-| 首领 | 首领波预警 / 首领被消灭 | 按空中或地面选 air armada / armor battalion,再接单位名 | **朗读首领单位名** |
-| 敌方核心 | 敌方核心被摧毁 | Enemy base powered down | **朗读建筑名** |
+| 单控 | 敌方或队友手动接管单位/炮塔/建筑、指挥建筑 | 分类台词 / Reinforcements have arrived / Structure garrisoned | 敌方玩家 X 单控了 名称! / 队友 X 指挥 名称 移动。 |
+| 高价值 | 规则命中的敌方单位/建筑出现或被摧毁 | 分类台词 / Beacon detected / Critical unit lost | 警告!发现敌方 名称! / 高价值敌方单位 名称 已被摧毁 |
+| 自选单位 | 名单内敌方单位出现 / 被消灭 | 同上 | 警告!自选目标 名称 出现! / 自选目标 名称 已被摧毁 |
+| 科技与战役 | 解锁科技 / 区块被入侵 / 区块占领 | New technology acquired / Enemy forces in your area / assumed command of this base | 获得新科技:内容名 / 区块 N 正在遭受攻击 / 区块 N 已占领 |
+| 胜负 | 胜利 / 失败 | Mission accomplished / Mission failed | 任务完成 / 任务失败 |
+| 首领 | 首领波预警 / 首领被消灭 | 按空中或地面选 air armada / armor battalion | 警告:敌方首领 单位名 即将来袭! / 敌方首领 单位名 已被消灭! |
+| 敌方核心 | 敌方核心被摧毁 | Enemy base powered down | 敌方核心 建筑名 已被摧毁! |
 
-固定台词全部来自红警2原版录音(索菲亚/Zofia,共 29 条);单位与建筑名沿用 TTS 名称包(`zh` 中文名 / `en` 英文名),两包共用同一批固定台词。
+固定台词全部来自红警2原版录音(索菲亚/Zofia,共 29 条);单位与建筑名来自 TTS 名称包(`zh` 中文名 / `en` 英文名),两包共用同一批固定台词。
+
+## 语音与提示框的分工
+
+**语音不需要准确播报,准确播报交给提示框。** 具体做法:
+
+- **提示框/事件卡片是唯一权威信息源**:具体类型名、数量、玩家名、区块名、波次号、解锁内容一律写在卡片文字里。
+- **卡片被关掉时自动兜底**:改用原版提示框(`ui.showInfoToast`)显示同一条准确文字,准确信息不会只剩下语音。设置项“原版提示框(准确信息)”可选 关闭 / 卡片关闭时 / 每次播报。
+- **语音只负责氛围**:默认只播索菲亚的固定台词,**不朗读具体名称**,单条播报更短;想要“台词 + 名称”可打开“语音朗读具体名称”。
+- **判定标准**:每条播报都必须先落卡片文字、再考虑语音;凡是细节只能从语音听到的地方都算不符合 —— 据此已修正“首领来袭”“兵厂取消”“科技解锁”三处,波次类补上了波次号。
 
 ## 针对“播报过于频繁”的设计
 
@@ -38,10 +47,10 @@ Mindustry 客户端 mod:用**红警2原版副官索菲亚(Zofia)的语音**播�
 
 设置 → **RA2 战场播报(索菲亚)**:
 
-- **语音**:名称语音语言(中文/English)、语音音量、两条播报之间的最小间隔。
+- **语音**:名称语音语言(中文/English)、语音朗读具体名称(默认关闭)、语音音量、两条播报之间的最小间隔。
 - **播报类别**:波次、基地、核心受击(含间隔)、单位损失、建筑损失、单位受袭、采矿单位受袭、生产完成、兵厂训练、敌方核心、首领、敌方集结(最小数量/间隔/核心半径)、单控(敌我分开)、建筑指挥、科技、战役、胜负。
 - **目标与过滤**:高价值目标规则(`core,boss,t5,unit:reign,block:foreshadow`)、自选单位名单、四套类型过滤对话框。
-- **界面与声音**:事件卡片、世界浮标、连线、卡片宽度/缩放/不透明度/持续时间/最大条数/间距/偏移、连线宽度与不透明度。
+- **界面与提示框**:事件卡片、世界浮标、连线、原版提示框模式(关闭/卡片关闭时/每次播报)与停留时间、卡片宽度/缩放/不透明度/持续时间/最大条数/间距/偏移、连线宽度与不透明度。
 - **颜色**:卡片底色、默认强调色,以及波次/基地/进攻/核心威胁/单控/损失/高价值/兵厂/单位就绪/采矿/情报各自的强调色(点右侧色块编辑)。
 
 ## 语音素材

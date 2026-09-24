@@ -12,7 +12,7 @@ Mindustry v8/v159 客户端 Java mod:红警2原版副官索菲亚(Zofia)语音�
   - `EventFeedOverlay.java` 右侧卡片/浮标/连线(+ 同消息去重)
   - `ThreatScanner.java` 敌方集结聚类与核心威胁(按同步终点聚类,不依赖 `CommandAI.group`)
   - `ControlWatch.java` 单控检测(`UnitControlEvent` / `BuildingCommandEvent`)
-  - `LossTracker.java` 我方损失合并播报(台词 + 具体类型名)
+  - `LossTracker.java` 我方损失合并播报(卡片带具体类型名,语音念名可选)
   - `UnitReports.java` 生产完成与“我方单位受袭”的聚合播报
   - `TypeFilters.java` 四套白名单过滤 + 勾选对话框
   - `Texts.java` `名称×数量、…` 列表文本工具
@@ -43,7 +43,7 @@ python tools/verify_pack.py
 - 多人客户端可见性是硬约束:新增检测先确认数据已同步(`UnitControlEvent`/`BuildingCommandEvent` 为 v8 双向广播,敌方集结用 `CommandAI` 的终点而非不联网的 `group`)。
 - **播报一律走 `Announcer.chain/play`(权重 + 冷却 + 全局限流)+ `EventFeedOverlay.show`(卡片)**,不要直接 `Sound.play()`。
 - **限流是需求的一部分**:高频事件(受袭、生产、损失、集结、单控)必须先聚合再播报;新事件要给出按类型冷却,并复用 `Announcer` 的最小间隔机制,避免退化成“每发子弹一句话”。
-- **详细类别是需求的一部分**:损失/受袭/生产/单控/高价值/首播报都要把具体单位或建筑名接在台词后面(`name-unit-*` / `name-block-*`),卡片文字也要带名称。
+- **语音不需要准确,准确信息归提示框**:每条播报先落 `EventFeedOverlay.show` —— 卡片文字必须带具体名称/数量/玩家/区块/波次号;语音只播索菲亚固定台词,名称片段默认不播(`ra2ann-voice-names` 打开才接在台词后)。卡片被关掉时由 `EventFeedOverlay` 用 `ui.showInfoToast` 兜底(`ra2ann-toast-mode`)。任何“细节只能从语音听出来”的实现都算不符合需求。
 - 声音键是逻辑名(`ann_wave` / `name-unit-*`),固定台词文件在 `assets/sounds/` 根目录、名称包在 `assets/sounds/<lang>/`;`Announcer.ALIASES` 负责缺片段时的兜底,不要在键名里混语言前缀。
 - 设置键前缀 `ra2ann-`;bundle 键前缀 `ra2ann.`;声音键 `ann_*` / `name-unit-*` / `name-block-*`。
 - 新增语音行:先在 `tools/fetch_ra2_voice.py` 的 `CLIPS` 里选一段索菲亚原声(用 `--list` 看文本)→ 生成 ogg → `Announcer.FIXED_LINES` 注册 → 两个 bundle 补 `setting.*`/消息键 → `python tools/verify_pack.py` 通过。
@@ -54,9 +54,10 @@ python tools/verify_pack.py
 1. `./gradlew classes` 无错误;`python tools/verify_pack.py` 全绿。
 2. `deploy` 后检查 `build/libs/Ra2Announcer.jar` 含 `mod.hjson`、`ra2/*.class`、`classes.dex`、`sounds/ann_*.ogg`、`sounds/zh|en/name-*.ogg`、`bundles/`。
 3. 单人装 mod:波次/核心受击/测试播报按钮出声;右侧卡片与浮标出现;同一事件短时间内不刷屏。
-4. 触发一次单位损失与一次生产:语音为“索菲亚台词 + 该单位名”,卡片列出具体名称。
-5. 局域网双开:客户端能收到敌方单控 `UnitControlEvent`、敌方集结聚类播报(MP 可见性核心验证)。
-6. 设置页四套过滤对话框可勾选保存;透明度/缩放滑条即时生效;名称语音语言切换后重新加载名称包。
+4. 触发一次单位损失与一次生产:卡片列出具体“名称×数量”;语音只播索菲亚台词(除非打开“语音朗读具体名称”)。
+5. 关掉“右侧事件卡片”后触发播报:原版提示框仍显示同一条准确文字。
+6. 局域网双开:客户端能收到敌方单控 `UnitControlEvent`、敌方集结聚类播报(MP 可见性核心验证)。
+7. 设置页四套过滤对话框可勾选保存;透明度/缩放滑条即时生效;名称语音语言切换后重新加载名称包。
 
 ## 提交约定
 
