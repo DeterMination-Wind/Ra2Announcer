@@ -161,7 +161,7 @@ public class Ra2Announcer extends Mod{
         Events.on(UnitSpawnEvent.class, e -> detect(e.unit));
         Events.on(UnitCreateEvent.class, e -> {
             UnitReports.onUnitReady(e.unit, e.spawner);
-            detect(e.unit);
+            detect(e.unit, e.spawner);
         });
 
         //我方单位受袭:聚合后播报,并朗读具体单位名
@@ -383,23 +383,31 @@ public class Ra2Announcer extends Mod{
     //region detection (high value + watch list)
 
     private void detect(Unit unit){
+        detect(unit, null);
+    }
+
+    private void detect(Unit unit, Building spawner){
         if(player == null || unit == null || unit.type == null || unit.team == player.team() || isMissile(unit)) return;
-        if(watchDetected(unit)) return;
+        boolean inWorld = unit.isAdded();
+        //兵厂/升级器产出的单位在 payload 里就触发 UnitCreateEvent(x=y=0),用产出的建筑兜底定位。
+        float x = !inWorld && spawner != null ? spawner.x : unit.x;
+        float y = !inWorld && spawner != null ? spawner.y : unit.y;
+        if(watchDetected(unit, x, y)) return;
         if(!highValueMatches(unit)) return;
         if(!cooldownOk("unit:" + unit.type.name)) return;
 
         String name = unit.type.localizedName;
-        showCard(Core.bundle.format("ra2ann.high.value.unit.detected", name), unit.x, unit.y, unit.type.uiIcon, name, "ra2ann-high-value-color");
+        showCard(Core.bundle.format("ra2ann.high.value.unit.detected", name), x, y, unit.type.uiIcon, name, "ra2ann-high-value-color");
         Announcer.chain(Announcer.P_ALARM, 0L, null, categoryLine(unit.type), nameKey(unit.type));
     }
 
     /** @return true when the unit is on the watch list and the detection was handled. */
-    private boolean watchDetected(Unit unit){
+    private boolean watchDetected(Unit unit, float x, float y){
         if(!watchMatches(unit.type)) return false;
         if(!cooldownOk("watch:" + unit.type.name)) return true;
 
         String name = unit.type.localizedName;
-        showCard(Core.bundle.format("ra2ann.watch.unit.detected", name), unit.x, unit.y, unit.type.uiIcon, name, "ra2ann-high-value-color");
+        showCard(Core.bundle.format("ra2ann.watch.unit.detected", name), x, y, unit.type.uiIcon, name, "ra2ann-high-value-color");
         Announcer.chain(Announcer.P_ALARM, 0L, null, categoryLine(unit.type), nameKey(unit.type));
         return true;
     }

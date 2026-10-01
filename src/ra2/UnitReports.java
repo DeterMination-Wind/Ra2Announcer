@@ -54,6 +54,12 @@ final class UnitReports{
         if(!(spawner.block instanceof mindustry.world.blocks.units.UnitBlock)) return;
 
         Pending pending = pendingFor(ready, unit.type, unit);
+        if(!unit.isAdded()){
+            //兵厂/升级器先 create() 再塞进 UnitPayload,此时单位还没进世界(x=y=0),
+            //卡片与连线必须落在产出它的建筑上,否则会指向地图左下角。
+            pending.x = spawner.x;
+            pending.y = spawner.y;
+        }
         pending.lastTick = Time.time;
         if(readyWindowStart < 0f) readyWindowStart = Time.time;
     }
@@ -165,7 +171,9 @@ final class UnitReports{
     }
 
     static boolean miner(UnitType type){
-        return type != null && (type.mineFloor || type.mineWalls);
+        //mineFloor 对所有单位默认为 true(挖地板矿人人可做),不能用来判断矿工。
+        //只有显式设置 mineTier > 0 的单位(mono/poly/mega 等)才是真正的采矿/支援单位。
+        return type != null && type.mineTier > 0;
     }
 
     private static class Pending{
