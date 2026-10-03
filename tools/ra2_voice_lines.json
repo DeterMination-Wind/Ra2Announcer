@@ -2,146 +2,146 @@
   "ann_base": {
     "clip": "zofia_144.wav",
     "text": "Establishing Battlefield Control. Standby.",
-    "seconds": 2.87
+    "seconds": 2.99
   },
   "ann_wave": {
     "clip": "zofia_478.wav",
     "text": "Warning! Enemy forces in your area!",
-    "seconds": 2.41
+    "seconds": 2.53
   },
   "ann_wave_warn": {
     "clip": "zofia_259.wav",
     "text": "Warning! Enemy armor battalion detected!",
-    "seconds": 2.66
+    "seconds": 2.78
   },
   "ann_wave_cleared": {
     "clip": "zofia_61.wav",
     "text": "Objective complete.",
-    "seconds": 1.43
+    "seconds": 1.54
   },
   "ann_core_attack": {
     "clip": "zofia_230.wav",
     "text": "Our base is under attack",
-    "seconds": 1.47
+    "seconds": 1.58
   },
   "ann_core_critical": {
     "clip": "zofia_22.wav",
     "text": "Base defenses offline",
-    "seconds": 1.76
+    "seconds": 1.88
   },
   "ann_core_threat": {
     "clip": "zofia_44.wav",
     "text": "It now threatens our base.",
-    "seconds": 1.97
+    "seconds": 2.1
   },
   "ann_reactor": {
     "clip": "zofia_29.wav",
     "text": "Sir, we are extremely vulnerable here.",
-    "seconds": 2.3
+    "seconds": 2.43
   },
   "ann_low_power": {
     "clip": "zofia_410.wav",
     "text": "low power",
-    "seconds": 0.85
+    "seconds": 0.96
   },
   "ann_unit_lost": {
     "clip": "zofia_19.wav",
     "text": "Unit lost.",
-    "seconds": 1.19
+    "seconds": 1.3
   },
   "ann_structure_lost": {
     "clip": "zofia_229.wav",
     "text": "Critical structure lost",
-    "seconds": 1.62
+    "seconds": 1.74
   },
   "ann_unit_attack": {
     "clip": "zofia_204.wav",
     "text": "Be warned, comrade general!",
-    "seconds": 2.2
+    "seconds": 2.42
   },
   "ann_miner_attack": {
     "clip": "zofia_293.wav",
     "text": "our miner under attack.",
-    "seconds": 1.62
+    "seconds": 1.74
   },
   "ann_unit_ready": {
     "clip": "zofia_268.wav",
     "text": "Unit ready",
-    "seconds": 0.94
+    "seconds": 1.05
   },
   "ann_training": {
     "clip": "zofia_540.wav",
     "text": "training",
-    "seconds": 0.61
+    "seconds": 0.72
   },
   "ann_cancel": {
     "clip": "zofia_20.wav",
     "text": "Cancelled.",
-    "seconds": 0.67
+    "seconds": 0.79
   },
   "ann_research": {
     "clip": "zofia_18.wav",
     "text": "New technology acquired.",
-    "seconds": 1.69
+    "seconds": 1.81
   },
   "ann_victory": {
     "clip": "zofia_282.wav",
     "text": "Mission accomplished.",
-    "seconds": 1.21
+    "seconds": 1.33
   },
   "ann_defeat": {
     "clip": "zofia_485.wav",
     "text": "Mission failed.",
-    "seconds": 1.14
+    "seconds": 1.28
   },
   "ann_enemy_base": {
     "clip": "zofia_21.wav",
     "text": "Enemy base powered down",
-    "seconds": 1.88
+    "seconds": 2.0
   },
   "ann_boss_kill": {
     "clip": "zofia_597.wav",
     "text": "Well done, comrade general.",
-    "seconds": 2.17
+    "seconds": 2.46
   },
   "ann_sector_captured": {
     "clip": "zofia_315.wav",
     "text": "Good, we have assumed command of this base.",
-    "seconds": 2.62
+    "seconds": 2.83
   },
   "ann_high_value_block": {
     "clip": "zofia_202.wav",
     "text": "Beacon detected.",
-    "seconds": 1.23
+    "seconds": 1.36
   },
   "ann_watch_destroyed": {
     "clip": "zofia_637.wav",
     "text": "Superb, Commander! The Pentagon has been destroyed!",
-    "seconds": 3.75
+    "seconds": 3.95
   },
   "ann_control_friendly": {
     "clip": "zofia_207.wav",
     "text": "Reinforcements have arrived.",
-    "seconds": 1.94
+    "seconds": 2.06
   },
   "ann_control_building": {
     "clip": "zofia_231.wav",
     "text": "Structure garrisoned",
-    "seconds": 1.33
+    "seconds": 1.47
   },
   "ann_force_infantry": {
     "clip": "zofia_23.wav",
     "text": "Warning! enemy infantry battalion detected",
-    "seconds": 2.85
+    "seconds": 2.96
   },
   "ann_force_air": {
     "clip": "zofia_417.wav",
     "text": "Warning! Enemy air armada detected!",
-    "seconds": 2.51
+    "seconds": 2.62
   },
   "ann_force_naval": {
     "clip": "zofia_370.wav",
     "text": "warning enemy fleet detected",
-    "seconds": 2.17
+    "seconds": 2.29
   }
 }

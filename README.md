@@ -63,7 +63,7 @@ Download `Ra2Announcer-v<version>.jar` from [Releases](https://github.com/DeterM
 
 Settings → **RA2 Announcer (Sophia)**:
 
-- **Voice**: name-voice language (Chinese/English), voice reads specific names (off by default), voice volume, minimum gap between announcements.
+- **Voice**: name-voice language (Chinese/English; follows the game language by default, the button locks an explicit choice), voice reads specific names (off by default), voice volume, minimum gap between announcements.
 - **Announcements**: waves, base, core under attack (with interval), unit losses, building losses, our units under attack, mining units under attack (only while actually mining), production finished, factory training, enemy core, boss, enemy rally (minimum count / interval / core radius), manual control (enemy and ally separated), building command, research, campaign, victory/defeat.
 - **Targets & filters**: high-value rules (`core,boss,t4,t5,unit:reign,block:foreshadow`, `t1`-`t5` supported), high-value / watched target destroy interval, watch list, four type-filter dialogs.
 - **Panel & notifications**: event cards, world markers, connection lines, vanilla toast mode (off / when cards are off / every announcement) and duration, card width / scale / opacity / duration / max entries / spacing / offset, line width and opacity.
@@ -114,7 +114,8 @@ python tools/verify_pack.py
 - Damage events are simulated locally: our units under attack are visible to the local client, but on a bad network they can be delayed or missed.
 - Vanilla has no separate event for "a player takes over a turret", but v8 routes turret control through `BlockUnit`, which is covered; pure processor logic control is not synced and is out of scope.
 - Name packs look up audio by internal name: missing names are skipped silently (the card still shows the name); run `python tools/verify_pack.py` to check coverage.
-- Both languages share the same original RA2 fixed lines; the language setting only switches the spoken unit/building names.
+- Both languages share the same original RA2 fixed lines; the language setting only switches the spoken unit/building names, which follow the game language (zh_CN / zh_TW → Chinese pack, anything else → English pack) until the player picks one explicitly.
+- UI text ships as English, Simplified Chinese and Traditional Chinese (the Traditional bundle is generated from the Simplified one with OpenCC); every other game locale falls back to English.
 
 ## License
 

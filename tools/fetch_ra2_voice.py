@@ -140,8 +140,10 @@ def to_ogg(name: str, wav: bytes, out_ogg: str) -> float:
                 "-i", tmp_wav,
                 "-ac", "1", "-ar", "48000",
                 "-af",
-                "silenceremove=start_periods=1:start_threshold=-50dB:start_duration=0.05,"
-                "areverse,silenceremove=start_periods=1:start_threshold=-55dB:start_duration=0.05,areverse,"
+                # 只用 peak 检测裁真正的静音:detection=avg 会把软起音当成静音,start_duration>0 还会丢掉
+                # 用于判定的开头/结尾缓冲,两者叠加会让单词起音和尾音突然消失
+                "silenceremove=start_periods=1:detection=peak:start_threshold=-60dB:start_duration=0,"
+                "areverse,silenceremove=start_periods=1:detection=peak:start_threshold=-55dB:start_duration=0,areverse,"
                 "loudnorm=I=-14:TP=-1.5:LRA=11,"
                 "apad=pad_dur=0.15",
                 "-c:a", "libvorbis", "-b:a", "64k",

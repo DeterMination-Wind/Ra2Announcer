@@ -264,6 +264,7 @@ public class Ra2Announcer extends Mod{
 
     private void update(){
         Announcer.update();
+        Announcer.checkLangReload();
         if(player == null || !state.isGame()) return;
         if(!timer.get(12f)) return;
 

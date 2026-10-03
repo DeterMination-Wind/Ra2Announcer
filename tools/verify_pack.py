@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Static checks for the RA2 Announcer asset packs.
 
-* bundle.properties / bundle_zh_CN.properties must define exactly the same keys
+* bundle.properties / bundle_zh_CN.properties / bundle_zh_TW.properties must define exactly the same keys
 * every ``ra2ann-*`` settings key used in src/ra2/*.java needs ``setting.<key>.name``
 * every ``ra2ann.*`` message key used in src/ra2/*.java must exist in both bundles
 * every fixed ``ann_*`` line used in src/ra2/*.java must ship in assets/sounds/
@@ -57,13 +57,20 @@ def sources() -> str:
 def main() -> int:
     problems: list[str] = []
 
-    en = read_bundle(os.path.join(BUNDLE_DIR, "bundle.properties"))
-    zh = read_bundle(os.path.join(BUNDLE_DIR, "bundle_zh_CN.properties"))
+    bundles = {
+        name: read_bundle(os.path.join(BUNDLE_DIR, name))
+        for name in sorted(os.listdir(BUNDLE_DIR))
+        if name.startswith("bundle") and name.endswith(".properties")
+    }
+    en = bundles.get("bundle.properties", {})
 
-    for key in sorted(set(en) - set(zh)):
-        problems.append(f"bundle_zh_CN.properties is missing: {key}")
-    for key in sorted(set(zh) - set(en)):
-        problems.append(f"bundle.properties is missing: {key}")
+    for name, data in bundles.items():
+        if name == "bundle.properties":
+            continue
+        for key in sorted(set(en) - set(data)):
+            problems.append(f"{name} is missing: {key}")
+        for key in sorted(set(data) - set(en)):
+            problems.append(f"bundle.properties is missing: {key}")
 
     code = sources()
 
@@ -124,7 +131,7 @@ def main() -> int:
 
     fixed = sorted(name for name in os.listdir(SOUND_DIR) if name.startswith("ann_") and name.endswith(".ogg"))
     print(f"[ra2] fixed Sophia clips: {len(fixed)}")
-    print(f"bundle keys: {len(en)} (en) / {len(zh)} (zh)")
+    print("bundle keys: " + ", ".join(f"{name}: {len(data)}" for name, data in bundles.items()))
 
     if problems:
         print("\nPROBLEMS:")

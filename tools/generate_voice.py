@@ -74,11 +74,12 @@ def to_ogg(name: str, tmp_mp3: str, out_ogg: str) -> None:
             "ffmpeg", "-y", "-loglevel", "error",
             "-i", tmp_mp3,
             "-ac", "1", "-ar", "48000",
-            # trim only true silence (-55dB tail keeps the natural decay of the last
-            # syllable), loudnorm, then pad 150ms of tail so clips never end abruptly
+            # trim only true silence with peak detection (avg detection treats soft onsets as
+            # silence, and start_duration>0 drops the onset/tail buffer it used to decide),
+            # keep the natural decay, then pad 150ms of tail so clips never end abruptly
             "-af",
-            "silenceremove=start_periods=1:start_threshold=-50dB:start_duration=0.05,"
-            "areverse,silenceremove=start_periods=1:start_threshold=-55dB:start_duration=0.05,areverse,"
+            "silenceremove=start_periods=1:detection=peak:start_threshold=-60dB:start_duration=0,"
+            "areverse,silenceremove=start_periods=1:detection=peak:start_threshold=-55dB:start_duration=0,areverse,"
             "loudnorm=I=-14:TP=-1.5:LRA=11,"
             "apad=pad_dur=0.15",
             "-c:a", "libvorbis", "-b:a", "64k",

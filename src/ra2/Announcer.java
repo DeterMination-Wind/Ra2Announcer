@@ -6,6 +6,7 @@ import arc.math.Mathf;
 import arc.struct.ObjectMap;
 import arc.struct.Seq;
 import arc.util.Time;
+import java.util.Locale;
 import mindustry.gen.Sounds;
 
 import static mindustry.Vars.content;
@@ -64,6 +65,9 @@ public final class Announcer{
     private static final ObjectMap<String, Float> lastClipAt = new ObjectMap<>();
     private static final Seq<PendingClip> pending = new Seq<>();
 
+    /** 已经加载的名称包语言,用于检测游戏语言在运行中切换 */
+    private static String loadedLang;
+
     private static int chainPriority = -1;
     private static float chainUntil = -1f;
 
@@ -78,9 +82,20 @@ public final class Announcer{
         return Mathf.clamp(Core.settings.getInt("ra2ann-voice-volume", 100), 0, 100) / 100f;
     }
 
-    /** Name-clip language ("zh" or "en"); the fixed RA2 lines are shared by both packs. */
+    /**
+     * Name-clip language ("zh" or "en"); the fixed RA2 lines are shared by both packs.
+     * 未手动切换过时跟随游戏语言:中文(zh_CN / zh_TW)用中文名称包,其余语言回退英文;
+     * 设置页的语言按钮会写入明确值,之后以玩家选择为准。
+     */
     public static String nameLang(){
-        return "en".equals(Core.settings.getString("ra2ann-name-lang", "zh")) ? "en" : "zh";
+        String configured = Core.settings.getString("ra2ann-name-lang", null);
+        if("zh".equals(configured) || "en".equals(configured)) return configured;
+        try{
+            Locale locale = Core.bundle == null ? null : Core.bundle.getLocale();
+            return locale != null && "zh".equalsIgnoreCase(locale.getLanguage()) ? "zh" : "en";
+        }catch(Throwable ignored){
+            return "en";
+        }
     }
 
     /**
@@ -100,16 +115,23 @@ public final class Announcer{
         reload();
     }
 
+    /** 游戏语言在运行中切换时(未手动指定)自动重载名称包,否则朗读会用旧语言。 */
+    public static void checkLangReload(){
+        if(loadedLang != null && !loadedLang.equals(nameLang())) reload();
+    }
+
     /** Re-resolves every clip; call after the name-pack language changed. */
     public static void reload(){
         sounds.clear();
+        String lang = nameLang();
         for(String name : FIXED_LINES) loadClip(name, name);
-        loadNames(nameLang());
+        loadNames(lang);
         for(String[] alias : ALIASES) loadAlias(alias[0], alias[1]);
         // second pass: anything still unresolved falls back to the generic wave line
         for(String[] alias : ALIASES){
             if(!has(alias[0])) loadAlias(alias[0], "ann_wave");
         }
+        loadedLang = lang;
     }
 
     private static void loadNames(String lang){

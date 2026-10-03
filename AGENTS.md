@@ -18,11 +18,11 @@ Mindustry v8/v159 客户端 Java mod:红警2原版副官索菲亚(Zofia)语音�
   - `Texts.java` `名称×数量、…` 列表文本工具
 - `assets/sounds/ann_*.ogg` — 红警2原版索菲亚固定台词(29 段,与语言无关)
 - `assets/sounds/zh/`、`assets/sounds/en/` — 单位/建筑名 TTS 名称包(各 60 单位 + 231 建筑)
-- `assets/bundles/` — `bundle.properties`(英)/ `bundle_zh_CN.properties`(中),键前缀 `ra2ann.` / `setting.ra2ann-*.name`
+- `assets/bundles/` — `bundle.properties`(英)/ `bundle_zh_CN.properties`(简中)/ `bundle_zh_TW.properties`(繁中,由简体经 OpenCC 转换),键前缀 `ra2ann.` / `setting.ra2ann-*.name`
 - `tools/fetch_ra2_voice.py` — 从 HuggingFace 数据集按 HTTP Range 只取需要的索菲亚片段并转 ogg
 - `tools/build_names.py` — 从 `../Mindustry-master/core/assets/bundles` 重建名称词表
 - `tools/generate_voice.py` — edge-tts 生成名称语音(仅名称,固定台词不走 TTS)
-- `tools/verify_pack.py` — 静态自检(bundle 双语键一致、设置键、消息键、音频齐全、别名链)
+- `tools/verify_pack.py` — 静态自检(bundle 多语键一致、设置键、消息键、音频齐全、别名链)
 
 ## 构建命令
 
@@ -46,7 +46,7 @@ python tools/verify_pack.py
 - **语音不需要准确,准确信息归提示框**:每条播报先落 `EventFeedOverlay.show` —— 卡片文字必须带具体名称/数量/玩家/区块/波次号;语音只播索菲亚固定台词,名称片段默认不播(`ra2ann-voice-names` 打开才接在台词后)。卡片被关掉时由 `EventFeedOverlay` 用 `ui.showInfoToast` 兜底(`ra2ann-toast-mode`)。任何“细节只能从语音听出来”的实现都算不符合需求。
 - 声音键是逻辑名(`ann_wave` / `name-unit-*`),固定台词文件在 `assets/sounds/` 根目录、名称包在 `assets/sounds/<lang>/`;`Announcer.ALIASES` 负责缺片段时的兜底,不要在键名里混语言前缀。
 - 设置键前缀 `ra2ann-`;bundle 键前缀 `ra2ann.`;声音键 `ann_*` / `name-unit-*` / `name-block-*`。
-- 新增语音行:先在 `tools/fetch_ra2_voice.py` 的 `CLIPS` 里选一段索菲亚原声(用 `--list` 看文本)→ 生成 ogg → `Announcer.FIXED_LINES` 注册 → 两个 bundle 补 `setting.*`/消息键 → `python tools/verify_pack.py` 通过。
+- 新增语音行:先在 `tools/fetch_ra2_voice.py` 的 `CLIPS` 里选一段索菲亚原声(用 `--list` 看文本)→ 生成 ogg → `Announcer.FIXED_LINES` 注册 → 三个 bundle 补 `setting.*`/消息键 → `python tools/verify_pack.py` 通过。
 - `bekBundled` 钩子保持原样(公共静态布尔 + `bekBuildSettings(SettingsTable)` + `addCategory` 守卫),供并入 Neon 时复用。
 
 ## 验证清单
