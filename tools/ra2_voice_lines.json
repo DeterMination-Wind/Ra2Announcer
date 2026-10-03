@@ -115,9 +115,9 @@
     "seconds": 1.23
   },
   "ann_watch_destroyed": {
-    "clip": "zofia_16.wav",
-    "text": "Critical unit lost.",
-    "seconds": 1.4
+    "clip": "zofia_637.wav",
+    "text": "Superb, Commander! The Pentagon has been destroyed!",
+    "seconds": 3.75
   },
   "ann_control_friendly": {
     "clip": "zofia_207.wav",

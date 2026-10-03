@@ -94,8 +94,9 @@ final class LossTracker{
             float x = 0f, y = 0f;
             for(PendingLoss loss : kindReady){
                 total += loss.count;
-                x += loss.x * loss.count;
-                y += loss.y * loss.count;
+                //loss.x/loss.y 已经是该类型所有损失位置的累加和,按数量加权求平均时不能再乘一次 count
+                x += loss.x;
+                y += loss.y;
             }
 
             Seq<String> parts = new Seq<>();

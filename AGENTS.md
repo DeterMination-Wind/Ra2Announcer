@@ -2,7 +2,7 @@
 
 Mindustry v8/v159 客户端 Java mod:红警2原版副官索菲亚(Zofia)语音的战场播报。
 本目录是 `BattleVoice` 与旧版 `Ra2Announcer` 合并后的唯一工程 —— `../BattleVoice` 已并入这里,不再单独维护。
-功能、边界与素材来源见 `README.md`。
+功能、边界与素材来源见 `README.md`(英文)与 `README_zh.md`(中文)。
 
 ## 文件布局
 

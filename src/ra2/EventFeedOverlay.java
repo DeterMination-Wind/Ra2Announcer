@@ -72,9 +72,10 @@ public final class EventFeedOverlay{
         float panelDuration = Math.max(0.5f, Core.settings.getInt("ra2ann-ui-duration", 4)) * 60f;
         float markerDuration = Math.max(0.5f, Core.settings.getInt("ra2ann-marker-duration", 8)) * 60f;
 
-        if(root.refresh(message, now + panelDuration, now + markerDuration)) return;
+        String marker = markerText == null ? shortText(message) : markerText;
+        if(root.refresh(message, marker, worldX, worldY, hasPosition, now + panelDuration, now + markerDuration)) return;
 
-        root.add(new Entry(message, markerText == null ? shortText(message) : markerText,
+        root.add(new Entry(message, marker,
             worldX, worldY, hasPosition, icon, colorKey, now, now + panelDuration, now + markerDuration));
     }
 
@@ -220,12 +221,19 @@ public final class EventFeedOverlay{
         }
 
         /** @return true when an identical alert is still fresh and was extended instead of duplicated */
-        boolean refresh(String message, float panelUntil, float markerUntil){
+        boolean refresh(String message, String markerText, float worldX, float worldY, boolean hasPosition, float panelUntil, float markerUntil){
             for(int i = entries.size - 1; i >= 0; i--){
                 Entry entry = entries.get(i);
                 if(!entry.message.equals(message) || Time.time - entry.addedAt > DEDUP_TICKS) continue;
                 entry.panelUntil = Math.max(entry.panelUntil, panelUntil);
                 entry.markerUntil = Math.max(entry.markerUntil, markerUntil);
+                //同一条消息续期时把标记挪到本次事件的位置,否则连线会一直指向第一次出现的地点
+                if(hasPosition){
+                    entry.worldX = worldX;
+                    entry.worldY = worldY;
+                    entry.hasPosition = true;
+                }
+                entry.markerText = markerText;
                 return true;
             }
             return false;
@@ -299,9 +307,9 @@ public final class EventFeedOverlay{
 
     private static class Entry{
         final String message;
-        final String markerText;
-        final float worldX, worldY;
-        final boolean hasPosition;
+        String markerText;
+        float worldX, worldY;
+        boolean hasPosition;
         final TextureRegion icon;
         final String colorKey;
         final float addedAt;

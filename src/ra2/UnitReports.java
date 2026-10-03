@@ -17,7 +17,8 @@ import static mindustry.Vars.player;
  * <ul>
  *   <li>生产完成({@code UnitCreateEvent}):同窗口内同型单位合并成一张卡片,并朗读该单位名;</li>
  *   <li>我方单位受袭({@code UnitDamageEvent}):按单位类型去重统计被击中的单位,
- *       合并成一张“受袭:名称×数量”卡片,再朗读受袭最重的那一型(采矿单位走专用台词)。</li>
+ *       合并成一张“受袭:名称×数量”卡片,再朗读受袭最重的那一型;
+ *       只有被击中那一刻“正在挖矿”的单位才走采矿单位专用台词,维修/作战/赶路的采矿单位按普通单位播报。</li>
  * </ul>
  * 伤害事件每帧都可能触发,所以这里先聚合再播报:这是"播报过于频繁"的主要治理点之一。
  */
@@ -29,6 +30,8 @@ final class UnitReports{
 
     private static final ObjectMap<String, Pending> ready = new ObjectMap<>();
     private static final ObjectMap<String, Pending> attacked = new ObjectMap<>();
+    /** 受袭时正在挖矿的单位,单独聚合成“采矿单位受袭”卡片 */
+    private static final ObjectMap<String, Pending> minerAttacked = new ObjectMap<>();
     private static final ObjectMap<String, Long> readyAnnounced = new ObjectMap<>();
     private static final ObjectMap<String, Long> attackAnnounced = new ObjectMap<>();
 
@@ -41,6 +44,7 @@ final class UnitReports{
     static void reset(){
         ready.clear();
         attacked.clear();
+        minerAttacked.clear();
         readyAnnounced.clear();
         attackAnnounced.clear();
         readyWindowStart = -1f;
@@ -70,7 +74,8 @@ final class UnitReports{
         if(unit.team != player.team()) return;
         if(!TypeFilters.attackedUnitAllowed(unit.type)) return;
 
-        Pending pending = pendingFor(attacked, unit.type, unit);
+        //只有被击中那一刻正在挖矿的单位才算“矿机”:维修、作战、赶路中的采矿型单位走普通受袭播报。
+        Pending pending = pendingFor(unit.mining() ? minerAttacked : attacked, unit.type, unit);
         pending.units.add(unit.id);
         pending.lastTick = Time.time;
         if(attackWindowStart < 0f) attackWindowStart = Time.time;
@@ -101,31 +106,38 @@ final class UnitReports{
     }
 
     private static void flushAttacked(){
-        if(attacked.isEmpty()) return;
+        if(attacked.isEmpty() && minerAttacked.isEmpty()) return;
         if(attackWindowStart < 0f || Time.time - attackWindowStart < ATTACK_WINDOW) return;
         attackWindowStart = -1f;
 
-        Seq<Pending> list = sorted(attacked);
-        attacked.clear();
+        //矿机受袭优先占语音位;同一窗口内两类同时出现时,普通受袭只补卡片
+        flushAttackedGroup(minerAttacked, true);
+        flushAttackedGroup(attacked, false);
+    }
+
+    /**
+     * @param mining true = 受袭时正在挖矿的单位,走“采矿单位受袭”专用卡片/台词;
+     *               false = 其余单位(含没在挖矿的采矿型单位)。
+     */
+    private static void flushAttackedGroup(ObjectMap<String, Pending> map, boolean mining){
+        Seq<Pending> list = sorted(map);
+        map.clear();
         if(list.isEmpty()) return;
 
-        Pending top = list.first();
-        boolean miner = miner(top.type);
-        boolean enabled = miner
+        boolean enabled = mining
             ? Core.settings.getBool("ra2ann-miner-attack", true)
             : Core.settings.getBool("ra2ann-unit-attack", true);
-
-        if(enabled){
-            String key = miner ? "ra2ann.miner.attack.batch" : "ra2ann.unit.attack.batch";
-            String message = Core.bundle.format(key, Texts.list(labels(list), Math.max(0, list.size - MAX_LISTED)));
-            EventFeedOverlay.show(message, top.x, top.y, top.icon, top.type.localizedName,
-                miner ? "ra2ann-miner-color" : "ra2ann-attack-color");
-        }
-
         if(!enabled) return;
+
+        Pending top = list.first();
+        String key = mining ? "ra2ann.miner.attack.batch" : "ra2ann.unit.attack.batch";
+        String message = Core.bundle.format(key, Texts.list(labels(list), Math.max(0, list.size - MAX_LISTED)));
+        EventFeedOverlay.show(message, top.x, top.y, top.icon, top.type.localizedName,
+            mining ? "ra2ann-miner-color" : "ra2ann-attack-color");
+
         long cooldown = Math.max(3, Core.settings.getInt("ra2ann-attack-cooldown", 20)) * 1000L;
-        if(!cooldownOk(attackAnnounced, top.type.name, cooldown)) return;
-        Announcer.chain(Announcer.P_ALARM, 0L, null, miner ? "ann_miner_attack" : "ann_unit_attack", nameKey(top.type));
+        if(!cooldownOk(attackAnnounced, (mining ? "miner:" : "unit:") + top.type.name, cooldown)) return;
+        Announcer.chain(Announcer.P_ALARM, 0L, null, mining ? "ann_miner_attack" : "ann_unit_attack", nameKey(top.type));
     }
 
     private static Pending pendingFor(ObjectMap<String, Pending> map, UnitType type, Unit unit){
@@ -168,12 +180,6 @@ final class UnitReports{
 
     static String nameKey(UnitType type){
         return type == null ? null : "name-unit-" + type.name;
-    }
-
-    static boolean miner(UnitType type){
-        //mineFloor 对所有单位默认为 true(挖地板矿人人可做),不能用来判断矿工。
-        //只有显式设置 mineTier > 0 的单位(mono/poly/mega 等)才是真正的采矿/支援单位。
-        return type != null && type.mineTier > 0;
     }
 
     private static class Pending{

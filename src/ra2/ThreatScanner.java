@@ -33,7 +33,7 @@ final class ThreatScanner{
     private static final Interval timer = new Interval(1);
 
     private static float windowStart = -1f;
-    private static long lastCoreThreatAt = Long.MIN_VALUE;
+    private static long lastCoreThreatAt = 0L;
 
     private ThreatScanner(){
     }
@@ -42,7 +42,7 @@ final class ThreatScanner{
         clusters.clear();
         announcedAt.clear();
         windowStart = -1f;
-        lastCoreThreatAt = Long.MIN_VALUE;
+        lastCoreThreatAt = 0L;
     }
 
     static void update(){

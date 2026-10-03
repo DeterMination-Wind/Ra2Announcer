@@ -64,7 +64,7 @@ CLIPS = {
     "ann_boss_kill":        ("zofia_597.wav", "Well done, comrade general."),
     "ann_sector_captured":  ("zofia_315.wav", "Good, we have assumed command of this base."),
     "ann_high_value_block": ("zofia_202.wav", "Beacon detected."),
-    "ann_watch_destroyed":  ("zofia_16.wav",  "Critical unit lost."),
+    "ann_watch_destroyed":  ("zofia_637.wav", "Superb, Commander! The Pentagon has been destroyed!"),
     "ann_control_friendly": ("zofia_207.wav", "Reinforcements have arrived."),
     "ann_control_building": ("zofia_231.wav", "Structure garrisoned"),
     "ann_force_infantry":   ("zofia_23.wav",  "Warning! enemy infantry battalion detected"),
@@ -201,12 +201,20 @@ def main() -> None:
         durations[key] = to_ogg(key, wav, out_ogg)
         print(f"  {key:22s} <- {clip:16s} {durations[key]:5.2f}s  \"{text}\"")
 
+    # merge into the existing map so single-line regeneration (fetch_ra2_voice.py ann_wave) keeps every other entry
+    mapping = {}
+    if os.path.exists(MAP_PATH):
+        with open(MAP_PATH, encoding="utf-8") as handle:
+            try:
+                mapping = json.load(handle)
+            except ValueError:
+                mapping = {}
+    mapping.update({
+        key: {"clip": clip, "text": text, "seconds": round(durations[key], 2)}
+        for key, (clip, text) in CLIPS.items() if key in durations
+    })
     with open(MAP_PATH, "w", encoding="utf-8") as handle:
-        json.dump(
-            {key: {"clip": clip, "text": text, "seconds": round(durations[key], 2)}
-             for key, (clip, text) in CLIPS.items() if key in durations},
-            handle, ensure_ascii=False, indent=2,
-        )
+        json.dump(mapping, handle, ensure_ascii=False, indent=2)
     print(f"wrote {len(durations)} clips into {os.path.relpath(OUT_DIR, ROOT_DIR)} and {os.path.relpath(MAP_PATH, ROOT_DIR)}")
 
 

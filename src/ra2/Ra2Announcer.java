@@ -73,6 +73,8 @@ public class Ra2Announcer extends Mod{
 
     private static final long COOLDOWN_ALERT = 30_000L;
     private static final long COOLDOWN_DETECT = 30_000L;
+    /** 默认高价值规则:两种星球的 T4/T5 都是主力/顶级单位(Erekir 的 T5 是领主/天帝/悲怆) */
+    private static final String HIGH_VALUE_DEFAULT = "core,boss,t4,t5";
 
     private static final String[] colorPresets = {
         "ef3d46", "b51f2a", "ff7e46", "ffb347", "ffd166", "a3e048", "4ce0c8",
@@ -91,7 +93,10 @@ public class Ra2Announcer extends Mod{
     private boolean wasWaiting;
     private float lastCoreHealth = -1f;
     private float lowPowerTicks;
-    private long lastCoreAttackAt = Long.MIN_VALUE;
+    //0 = 尚未播报:不能用 Long.MIN_VALUE,减法会在首次检查时溢出成负数,导致播报永远被拦下
+    private long lastCoreAttackAt = 0L;
+    /** 上次高价值/自选目标摧毁语音时间(毫秒),由“高价值/自选目标摧毁播报间隔”节流 */
+    private long lastTargetDestroyedAt = 0L;
 
     @Override
     public void init(){
@@ -153,7 +158,7 @@ public class Ra2Announcer extends Mod{
             if(highValueMatches(e.unit)){
                 String name = e.unit.type.localizedName;
                 showCard(Core.bundle.format("ra2ann.high.value.unit", name), e.unit.x, e.unit.y, e.unit.type.uiIcon, name, "ra2ann-high-value-color");
-                Announcer.chain(Announcer.P_ALARM, 0L, null, "ann_watch_destroyed", nameKey(e.unit.type));
+                announceTargetDestroyed(nameKey(e.unit.type));
             }
         });
 
@@ -198,7 +203,7 @@ public class Ra2Announcer extends Mod{
             if(highValueMatches(build)){
                 String name = build.block.localizedName;
                 showCard(Core.bundle.format("ra2ann.high.value.block", name), e.tile.worldx(), e.tile.worldy(), build.block.uiIcon, name, "ra2ann-high-value-color");
-                Announcer.chain(Announcer.P_ALARM, 0L, null, "ann_watch_destroyed", blockKey(build.block));
+                announceTargetDestroyed(blockKey(build.block));
             }
         });
 
@@ -374,7 +379,8 @@ public class Ra2Announcer extends Mod{
         wasWaiting = false;
         lowPowerTicks = 0f;
         lastCoreHealth = -1f;
-        lastCoreAttackAt = Long.MIN_VALUE;
+        lastCoreAttackAt = 0L;
+        lastTargetDestroyedAt = 0L;
         EventFeedOverlay.clear();
     }
 
@@ -419,8 +425,23 @@ public class Ra2Announcer extends Mod{
 
         String name = unit.type.localizedName;
         showCard(Core.bundle.format("ra2ann.watch.unit.destroyed", name), unit.x, unit.y, unit.type.uiIcon, name, "ra2ann-high-value-color");
-        Announcer.chain(Announcer.P_ALARM, COOLDOWN_ALERT, "ann_watch_destroyed", "ann_watch_destroyed", nameKey(unit.type));
+        announceTargetDestroyed(nameKey(unit.type));
         return true;
+    }
+
+    /**
+     * 高价值/自选目标被摧毁时的语音确认。
+     * 这类语音是警报级(可打断低权重播报),必须再过一道“高价值/自选目标摧毁播报间隔”,
+     * 且不短于全局“两条播报之间的最小间隔”,否则连续摧毁目标会无视频率设置连播。
+     * 卡片不受节流影响:目标名与数量等信息永远照常显示。
+     */
+    private void announceTargetDestroyed(String nameClip){
+        long interval = Math.max(5, Core.settings.getInt("ra2ann-high-value-cooldown", 30)) * 1000L;
+        int gapSeconds = Math.max(0, Math.min(8, Core.settings.getInt("ra2ann-voice-gap", 2)));
+        long now = Time.millis();
+        if(now - lastTargetDestroyedAt < Math.max(interval, gapSeconds * 1000L)) return;
+        lastTargetDestroyedAt = now;
+        Announcer.chain(Announcer.P_ALARM, 0L, null, "ann_watch_destroyed", nameClip);
     }
 
     private boolean cooldownOk(String key){
@@ -451,8 +472,12 @@ public class Ra2Announcer extends Mod{
         if(unit == null || unit.type == null) return false;
         for(String item : highValueRules()){
             String rule = item.trim().toLowerCase();
+            if(rule.isEmpty()) continue;
             if(rule.equals("boss") && unit.isBoss()) return true;
-            if(rule.equals("t5") && isT5(unit.type)) return true;
+            if(rule.length() == 2 && rule.charAt(0) == 't'){
+                int wanted = rule.charAt(1) - '0';
+                if(wanted >= 1 && wanted <= 5 && tier(unit.type) == wanted) return true;
+            }
             if(rule.equals("unit:" + unit.type.name.toLowerCase())) return true;
         }
         return false;
@@ -471,14 +496,31 @@ public class Ra2Announcer extends Mod{
     }
 
     private String[] highValueRules(){
-        String configured = Core.settings.getString("ra2ann-high-value-targets", "core,boss,t5");
-        return configured == null ? new String[0] : configured.split(",");
+        String configured = Core.settings.getString("ra2ann-high-value-targets", HIGH_VALUE_DEFAULT);
+        //与自选单位列表一致:中英文逗号都能用,避免中文输入法逗号把整行规则变成一个不命中的字符串
+        return configured == null ? new String[0] : configured.split("[,，]");
     }
 
-    private static boolean isT5(UnitType type){
-        String name = type.name.toLowerCase();
-        return name.equals("omura") || name.equals("reign") || name.equals("toxopid")
-            || name.equals("eclipse") || name.equals("oct") || name.equals("corvus");
+    /**
+     * 单位等级(1-5)。v8 的 {@code UnitType} 没有 tier 字段,只能按内部名表判断;
+     * 表覆盖原版两种星球的常规单位(Serpulo 7 条线 + Erekir 3 条线),模组单位用 {@code unit:<内部名>} 规则。
+     */
+    private static int tier(UnitType type){
+        if(type == null || type.name == null) return -1;
+        return switch(type.name.toLowerCase()){
+            //Serpulo: 地面/支援/步行/空军/矿机/海军攻击/海军支援,Erekir: 坦克/机甲/飞船
+            case "dagger", "nova", "crawler", "flare", "mono", "risso", "retusa",
+                 "stell", "merui", "elude" -> 1;
+            case "mace", "pulsar", "atrax", "horizon", "poly", "minke", "oxynoe",
+                 "locus", "cleroi", "avert" -> 2;
+            case "fortress", "quasar", "spiroct", "zenith", "mega", "bryde", "cyerce",
+                 "precept", "anthicus", "obviate" -> 3;
+            case "scepter", "vela", "arkyid", "antumbra", "quad", "sei", "aegires",
+                 "vanquish", "tecta", "quell" -> 4;
+            case "reign", "corvus", "toxopid", "eclipse", "oct", "omura", "navanax",
+                 "conquer", "collaris", "disrupt" -> 5;
+            default -> -1;
+        };
     }
 
     //endregion
@@ -617,7 +659,8 @@ public class Ra2Announcer extends Mod{
 
         rowTitle(table, "ra2ann.category.targets");
         table.checkPref("ra2ann-high-value", true);
-        table.textPref("ra2ann-high-value-targets", "core,boss,t5");
+        table.sliderPref("ra2ann-high-value-cooldown", 30, 5, 300, 5, value -> Core.bundle.format("ra2ann.seconds", value));
+        table.textPref("ra2ann-high-value-targets", HIGH_VALUE_DEFAULT);
         table.checkPref("ra2ann-watch", true);
         table.textPref("ra2ann-watch-units", "");
         TypeFilters.addFilterButtons(table);
