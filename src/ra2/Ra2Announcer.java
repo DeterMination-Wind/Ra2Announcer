@@ -623,13 +623,13 @@ public class Ra2Announcer extends Mod{
     public void bekBuildSettings(SettingsMenuDialog.SettingsTable table){
         table.checkPref("ra2ann-enabled", true);
 
-        rowTitle(table, "ra2ann.category.voice");
+        SettingsRows.title(table, "ra2ann.category.voice");
         nameLangRow(table);
         table.checkPref("ra2ann-voice-names", false);
         table.sliderPref("ra2ann-voice-volume", 100, 0, 100, 5, value -> value + "%");
         table.sliderPref("ra2ann-voice-gap", 2, 0, 8, 1, value -> Core.bundle.format("ra2ann.seconds", value));
 
-        rowTitle(table, "ra2ann.category.announcements");
+        SettingsRows.title(table, "ra2ann.category.announcements");
         table.checkPref("ra2ann-wave", true);
         table.checkPref("ra2ann-base", true);
         table.checkPref("ra2ann-core-damage", true);
@@ -658,15 +658,15 @@ public class Ra2Announcer extends Mod{
         table.checkPref("ra2ann-campaign", true);
         table.checkPref("ra2ann-outcome", true);
 
-        rowTitle(table, "ra2ann.category.targets");
+        SettingsRows.title(table, "ra2ann.category.targets");
         table.checkPref("ra2ann-high-value", true);
         table.sliderPref("ra2ann-high-value-cooldown", 30, 5, 300, 5, value -> Core.bundle.format("ra2ann.seconds", value));
         table.textPref("ra2ann-high-value-targets", HIGH_VALUE_DEFAULT);
         table.checkPref("ra2ann-watch", true);
         table.textPref("ra2ann-watch-units", "");
-        TypeFilters.addFilterButtons(table);
+        SettingsRows.custom(table, t -> TypeFilters.addFilterButtons(t));
 
-        rowTitle(table, "ra2ann.category.ui");
+        SettingsRows.title(table, "ra2ann.category.ui");
         table.checkPref("ra2ann-ui-enabled", true);
         table.checkPref("ra2ann-marker-enabled", true);
         table.checkPref("ra2ann-line-enabled", true);
@@ -685,7 +685,7 @@ public class Ra2Announcer extends Mod{
         table.sliderPref("ra2ann-line-width", 3, 1, 6, 1, value -> value + "px");
         table.sliderPref("ra2ann-line-alpha", 95, 35, 100, 5, value -> value + "%");
 
-        rowTitle(table, "ra2ann.category.colors");
+        SettingsRows.title(table, "ra2ann.category.colors");
         colorRow(table, "ra2ann-card-color", "b51f2a");
         colorRow(table, "ra2ann-accent-color", "ef3d46");
         colorRow(table, "ra2ann-wave-color", "ffd166");
@@ -702,23 +702,25 @@ public class Ra2Announcer extends Mod{
         colorRow(table, "ra2ann-miner-color", "ffd166");
         colorRow(table, "ra2ann-info-color", "64a0ff");
 
-        table.button(Core.bundle.get("ra2ann.test", "Test announcement"), () -> {
+        SettingsRows.custom(table, t -> t.button(Core.bundle.get("ra2ann.test", "Test announcement"), () -> {
             String[] keys = Announcer.FIXED_LINES;
             String key = keys[(int)(Math.random() * keys.length)];
             showCard(Core.bundle.get("ra2ann.test.line", key), Float.NaN, Float.NaN, null, null, null);
             Announcer.play(Announcer.P_INFO, 0L, null, key);
-        }).width(220f).padTop(8f).row();
+        }).width(220f).padTop(8f).row());
     }
 
     /** Name-pack language toggle: 中文/English unit & building names (RA2 lines are shared). */
     private void nameLangRow(SettingsMenuDialog.SettingsTable table){
-        nameLangButton = table.button("", Styles.flatTogglet, () -> {
-            Core.settings.put("ra2ann-name-lang", "en".equals(Announcer.nameLang()) ? "zh" : "en");
-            reloadVoicePack();
+        SettingsRows.custom(table, t -> {
+            nameLangButton = t.button("", Styles.flatTogglet, () -> {
+                Core.settings.put("ra2ann-name-lang", "en".equals(Announcer.nameLang()) ? "zh" : "en");
+                reloadVoicePack();
+                refreshNameLangButton();
+            }).width(320f).height(45f).padTop(7f).get();
             refreshNameLangButton();
-        }).width(320f).height(45f).padTop(7f).get();
-        refreshNameLangButton();
-        table.row();
+            t.row();
+        });
     }
 
     private void refreshNameLangButton(){
@@ -733,22 +735,21 @@ public class Ra2Announcer extends Mod{
         return Core.bundle.get(value == 1 ? "ra2ann.toast.fallback" : "ra2ann.toast.always", "?");
     }
 
-    private void rowTitle(Table table, String bundleKey){
-        table.add(Core.bundle.get(bundleKey, bundleKey)).colspan(2).growX().left().padTop(12f).padBottom(4f)
-            .color(Color.valueOf("ffd166")).row();
-    }
-
-    private void colorRow(Table table, String colorKey, String colorDefault){
-        Table row = new Table();
-        row.add(Core.bundle.get("setting." + colorKey + ".name", colorKey)).growX().height(45f).left().padLeft(10f);
-        String value = Core.settings.getString(colorKey, colorDefault);
-        TextButton swatch = row.button(value, Styles.flatTogglet, () -> showColorEditor(colorKey, colorDefault))
-            .width(112f).height(45f).padLeft(6f).get();
-        swatch.getLabel().setColor(parseHexOr(value, colorDefault));
-        colorSwatches.put(colorKey, swatch);
-        table.add(row).minWidth(Math.min(500f, Core.graphics.getWidth() / 1.2f / Scl.scl(1f)))
-            .fillX().height(45f).left().padTop(7f);
-        table.row();
+    private void colorRow(SettingsMenuDialog.SettingsTable table, String colorKey, String colorDefault){
+        String label = Core.bundle.get("setting." + colorKey + ".name", colorKey);
+        SettingsRows.custom(table, t -> {
+            Table row = new Table();
+            row.add(label).growX().height(45f).left().padLeft(10f);
+            String value = Core.settings.getString(colorKey, colorDefault);
+            TextButton swatch = row.button(value, Styles.flatTogglet, () -> showColorEditor(colorKey, colorDefault))
+                .width(112f).height(45f).padLeft(6f).get();
+            swatch.getLabel().setColor(parseHexOr(value, colorDefault));
+            //重建(原版 rebuild / MindustryX build)会换一个新按钮,这里始终指向最新实例
+            colorSwatches.put(colorKey, swatch);
+            t.add(row).minWidth(Math.min(500f, Core.graphics.getWidth() / 1.2f / Scl.scl(1f)))
+                .fillX().height(45f).left().padTop(7f);
+            t.row();
+        });
     }
 
     private void showColorEditor(String key, String colorDefault){

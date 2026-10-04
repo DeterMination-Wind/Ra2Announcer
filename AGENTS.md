@@ -15,6 +15,7 @@ Mindustry v8/v159 客户端 Java mod:红警2原版副官索菲亚(Zofia)语音�
   - `LossTracker.java` 我方损失合并播报(卡片带具体类型名,语音念名可选)
   - `UnitReports.java` 生产完成与“我方单位受袭”的聚合播报
   - `TypeFilters.java` 四套白名单过滤 + 勾选对话框
+  - `SettingsRows.java` 设置页自定义行(分区标题/色块/按钮)的注册包装,见“代码约束”
   - `Texts.java` `名称×数量、…` 列表文本工具
 - `assets/sounds/ann_*.ogg` — 红警2原版索菲亚固定台词(29 段,与语言无关)
 - `assets/sounds/zh/`、`assets/sounds/en/` — 单位/建筑名 TTS 名称包(各 60 单位 + 231 建筑)
@@ -46,6 +47,7 @@ python tools/verify_pack.py
 - **语音不需要准确,准确信息归提示框**:每条播报先落 `EventFeedOverlay.show` —— 卡片文字必须带具体名称/数量/玩家/区块/波次号;语音只播索菲亚固定台词,名称片段默认不播(`ra2ann-voice-names` 打开才接在台词后)。卡片被关掉时由 `EventFeedOverlay` 用 `ui.showInfoToast` 兜底(`ra2ann-toast-mode`)。任何“细节只能从语音听出来”的实现都算不符合需求。
 - 声音键是逻辑名(`ann_wave` / `name-unit-*`),固定台词文件在 `assets/sounds/` 根目录、名称包在 `assets/sounds/<lang>/`;`Announcer.ALIASES` 负责缺片段时的兜底,不要在键名里混语言前缀。
 - 设置键前缀 `ra2ann-`;bundle 键前缀 `ra2ann.`;声音键 `ann_*` / `name-unit-*` / `name-block-*`。
+- **设置页里的自定义行(分区标题、颜色色块、语言按钮、过滤按钮、测试按钮)必须经 `SettingsRows.title/custom` 注册成 `SettingsTable.Setting`,不要直接 `table.add(...)`/`table.button(...)`**:原版 v8 的 `pref()` 每次都 `rebuild()`,MindustryX 把重建推迟到绘制时(`act()` → `build()`),两者都会 `clearChildren()` 后只按注册列表重建 —— 直加的行会被抹掉(表现为 MindustryX 上“颜色/标题/按钮整段消失”)。
 - 新增语音行:先在 `tools/fetch_ra2_voice.py` 的 `CLIPS` 里选一段索菲亚原声(用 `--list` 看文本)→ 生成 ogg → `Announcer.FIXED_LINES` 注册 → 三个 bundle 补 `setting.*`/消息键 → `python tools/verify_pack.py` 通过。
 - `bekBundled` 钩子保持原样(公共静态布尔 + `bekBuildSettings(SettingsTable)` + `addCategory` 守卫),供并入 Neon 时复用。
 
@@ -58,6 +60,7 @@ python tools/verify_pack.py
 5. 关掉“右侧事件卡片”后触发播报:原版提示框仍显示同一条准确文字。
 6. 局域网双开:客户端能收到敌方单控 `UnitControlEvent`、敌方集结聚类播报(MP 可见性核心验证)。
 7. 设置页四套过滤对话框可勾选保存;透明度/缩放滑条即时生效;名称语音语言切换后重新加载名称包。
+8. 打开设置页确认 5 个分区标题、“颜色”区 15 个色块(点开可改色且保存后色块文字/颜色立即更新)、名称语音语言按钮、4 个过滤按钮与测试播报按钮全部在位 —— 原版与 MindustryX 都要过(设置表重建时最容易被抹掉)。
 
 ## 提交约定
 
