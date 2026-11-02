@@ -40,6 +40,12 @@ public final class EventFeedOverlay{
     private static final int defaultMaxEntries = 6;
     /** identical messages within this window reuse the existing card instead of adding a new one */
     private static final float DEDUP_TICKS = 75f;
+    /** RA2 panel: near-black 1px frame + derived highlight/shadow, no rounding */
+    private static final String BORDER_HEX = "10100f";
+    /** scratch colors so the per-frame card draw does not allocate */
+    private static final Color baseColor = new Color(), panelTop = new Color(), panelBottom = new Color(),
+        panelLight = new Color(), panelDark = new Color();
+    private static Color borderColor;
 
     private static HudRoot root;
     private static boolean attached;
@@ -172,6 +178,28 @@ public final class EventFeedOverlay{
     private static Color entryColor(String key){
         if(key == null || key.isEmpty()) return colorSetting("ra2ann-accent-color", "ef3d46");
         return colorSetting(key, defaultColor(key));
+    }
+
+    /** 情报类(生产完成/兵厂训练/科研/胜负/区块)用灰底,其余全是警报红底。 */
+    private static boolean infoFamily(String colorKey){
+        if(colorKey == null) return false;
+        String key = colorKey.toLowerCase();
+        return key.contains("factory") || key.contains("unit-ready") || key.contains("info");
+    }
+
+    private static Color backgroundColor(String colorKey){
+        if(infoFamily(colorKey)) return colorSetting("ra2ann-card-info-color", "4a4a52");
+        //旧版“卡片底色”继续作为警报底的回退默认值,老用户的自定义值不会丢
+        return colorSetting("ra2ann-card-alert-color", legacyAlertColor());
+    }
+
+    private static String legacyAlertColor(){
+        String legacy = Core.settings.getString("ra2ann-card-color", "b51f2a");
+        if(legacy == null) return "b51f2a";
+        legacy = legacy.trim();
+        if(legacy.startsWith("#")) legacy = legacy.substring(1);
+        if(legacy.length() != 6 && legacy.length() != 8) return "b51f2a";
+        return legacy;
     }
 
     private static String defaultColor(String key){
@@ -372,12 +400,45 @@ public final class EventFeedOverlay{
         public void draw(){
             validate();
             float alpha = parentAlpha * opacity();
-            Color card = colorSetting("ra2ann-card-color", "b51f2a");
+            float w = width, h = getHeight();
+            float t = Scl.scl(1f);
             Color accent = entryColor(entry.colorKey);
-            Draw.color(card, alpha);
-            Fill.rect(x + width / 2f, y + getHeight() / 2f, width, getHeight());
+
+            //竖向渐变底:警报红 / 情报灰,上下各自微调亮度
+            baseColor.set(backgroundColor(entry.colorKey));
+            panelTop.set(baseColor).lerp(Color.white, 0.10f);
+            panelBottom.set(baseColor).lerp(Color.black, 0.20f);
+            int strips = 8;
+            float sh = h / strips;
+            for(int i = 0; i < strips; i++){
+                Draw.color(panelTop, panelBottom, (i + 0.5f) / strips);
+                Draw.alpha(alpha);
+                //条带轻微重叠 1px,避免缩放下的细缝
+                Fill.rect(x + w / 2f, y + h - sh * (i + 0.5f), w, sh + t);
+            }
+
+            //1px 近黑外框
+            if(borderColor == null) borderColor = Color.valueOf(BORDER_HEX);
+            Draw.color(borderColor, alpha);
+            Fill.rect(x + w / 2f, y + h - t / 2f, w, t);
+            Fill.rect(x + w / 2f, y + t / 2f, w, t);
+            Fill.rect(x + t / 2f, y + h / 2f, t, h);
+            Fill.rect(x + w - t / 2f, y + h / 2f, t, h);
+
+            //内侧左上高光 / 右下暗边,做出 RA2 面板的斜切感
+            panelLight.set(baseColor).lerp(Color.white, 0.28f);
+            Draw.color(panelLight, alpha);
+            Fill.rect(x + w / 2f, y + h - 1.5f * t, w - 2f * t, t);
+            Fill.rect(x + 1.5f * t, y + h / 2f, t, h - 2f * t);
+
+            panelDark.set(baseColor).lerp(Color.black, 0.45f);
+            Draw.color(panelDark, alpha);
+            Fill.rect(x + w / 2f, y + 1.5f * t, w - 2f * t, t);
+            Fill.rect(x + w - 1.5f * t, y + h / 2f, t, h - 2f * t);
+
+            //左侧 4px 事件类型强调条
             Draw.color(accent, alpha);
-            Fill.rect(x + Scl.scl(3f), y + getHeight() / 2f, Scl.scl(4f), Math.max(Scl.scl(8f), getHeight() - Scl.scl(6f)));
+            Fill.rect(x + Scl.scl(3f), y + h / 2f, Scl.scl(4f), Math.max(Scl.scl(8f), h - Scl.scl(6f)));
             Draw.reset();
             super.draw();
         }

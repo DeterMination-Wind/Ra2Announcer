@@ -9,7 +9,7 @@ Mindustry v8/v159 客户端 Java mod:红警2原版副官索菲亚(Zofia)语音�
 - `src/ra2/` — 全部 Java 源码(flat src 布局,包名 `ra2`):
   - `Ra2Announcer.java` 主类:`Mod` 入口、事件编排、设置页(`bekBuildSettings`)、颜色编辑器、高价值目标与自选单位判定、`categoryLine()` 兵种分类台词
   - `Announcer.java` 声音库 + 权重链调度 + 全局限流(最小间隔、真实时长排期、同片段最短重播)
-  - `EventFeedOverlay.java` 右侧卡片/浮标/连线(+ 同消息去重)
+  - `EventFeedOverlay.java` 右侧卡片/浮标/连线(+ 同消息去重);卡片底色按警报/情报分档,绘制为 RA2 风格面板(渐变底 + 近黑外框 + 内侧斜切高光)
   - `ThreatScanner.java` 敌方集结聚类与核心威胁(按同步终点聚类,不依赖 `CommandAI.group`)
   - `ControlWatch.java` 单控检测(`UnitControlEvent` / `BuildingCommandEvent`)
   - `LossTracker.java` 我方损失合并播报(卡片带具体类型名,语音念名可选)
@@ -60,7 +60,7 @@ python tools/verify_pack.py
 5. 关掉“右侧事件卡片”后触发播报:原版提示框仍显示同一条准确文字。
 6. 局域网双开:客户端能收到敌方单控 `UnitControlEvent`、敌方集结聚类播报(MP 可见性核心验证)。
 7. 设置页四套过滤对话框可勾选保存;透明度/缩放滑条即时生效;名称语音语言切换后重新加载名称包。
-8. 打开设置页确认 5 个分区标题、“颜色”区 15 个色块(点开可改色且保存后色块文字/颜色立即更新)、名称语音语言按钮、4 个过滤按钮与测试播报按钮全部在位 —— 原版与 MindustryX 都要过(设置表重建时最容易被抹掉)。
+8. 打开设置页确认 5 个分区标题、“颜色”区 16 个色块(警报/情报两档卡片底色 + 14 个强调色,点开可改色且保存后色块文字/颜色立即更新)、名称语音语言按钮、4 个过滤按钮与测试播报按钮全部在位 —— 原版与 MindustryX 都要过(设置表重建时最容易被抹掉)。
 
 ## 提交约定
 

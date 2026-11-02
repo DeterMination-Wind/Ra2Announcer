@@ -23,7 +23,7 @@ It is the merged successor of `Ra2Announcer` (high-value targets, watch list, re
 | Losses | Our unit or building destroyed | Unit lost / Critical structure lost | Our unit losses / Our buildings destroyed: `name×count, …` |
 | Under attack | One of our units is hit | Be warned, comrade general (units that were mining when hit use miner under attack) | Our units under attack / Mining units under attack: `name×count` |
 | Production | Factory starts training / production finished / cancelled | training / Unit ready / Cancelled | Training: unit name / Unit ready: name×count / Production cancelled: factory name |
-| Rally | Enemy batch control, or a destination pointing at our core | infantry/armor/air/fleet detected (picked by the dominant force) | Dominant unit name + count + highest-threat type |
+| Rally | Enemy batch control, or a destination pointing at our core | infantry/armor/air/fleet detected (picked by the dominant force) | `Enemy force detected: crawler×6, dagger×12` (listed by count, `N more types` past 3) |
 | Manual control | Enemy or ally manually takes over a unit/turret/building, or commands a building | Category line / Reinforcements have arrived / Structure garrisoned | Enemy player X took control of NAME! / Ally X is moving NAME. |
 | High value | A rule-matched enemy unit/building appears or is destroyed | Category line / Beacon detected / Superb, Commander! The Pentagon has been destroyed! | Warning! Enemy NAME detected! / High-value enemy unit NAME destroyed |
 | Watch list | A listed enemy unit appears / is killed | Same as above | Warning! Watched target NAME appeared! / Watched target NAME destroyed |
@@ -41,7 +41,7 @@ All fixed lines are original Red Alert 2 recordings (Zofia, 29 clips); unit and 
 - **Cards and toasts are the single source of truth**: type names, counts, player names, sector names, wave numbers and unlocked content are always written into the card text.
 - **Toast fallback when cards are off**: the mod falls back to the vanilla toast (`ui.showInfoToast`) with the same exact text, so accuracy never exists only in speech. The "vanilla toast" setting offers off / when cards are off / every announcement.
 - **The voice only sets the mood**: by default it plays the fixed Zofia line and **does not read specific names**, which keeps announcements short; enable "voice reads specific names" to append the name.
-- **Rule of thumb**: every announcement must land its card text first and only then consider the voice; anything whose detail can only be heard in the voice is considered a bug. This has already fixed boss warnings, factory cancels and research unlocks, and wave reports now include the wave number.
+- **Rule of thumb**: every announcement must land its card text first and only then consider the voice; anything whose detail can only be heard in the voice is considered a bug. This has already fixed boss warnings, factory cancels and research unlocks, wave reports now include the wave number, and rally counts are no longer counted twice or three times by the 24-tick scan window.
 
 ## Designed Against Announcement Spam
 
@@ -67,7 +67,7 @@ Settings → **RA2 Announcer (Sophia)**:
 - **Announcements**: waves, base, core under attack (with interval), unit losses, building losses, our units under attack, mining units under attack (only while actually mining), production finished, factory training, enemy core, boss, enemy rally (minimum count / interval / core radius), manual control (enemy and ally separated), building command, research, campaign, victory/defeat.
 - **Targets & filters**: high-value rules (`core,boss,t4,t5,unit:reign,block:foreshadow`, `t1`-`t5` supported), high-value / watched target destroy interval, watch list, four type-filter dialogs.
 - **Panel & notifications**: event cards, world markers, connection lines, vanilla toast mode (off / when cards are off / every announcement) and duration, card width / scale / opacity / duration / max entries / spacing / offset, line width and opacity.
-- **Colors**: card background, default accent, and a per-category accent (waves / base / attack / core threat / manual control / losses / high value / factory / unit ready / mining / info) editable via the swatch button on the right.
+- **Colors**: the card background comes in two variants — **alert** (default `b51f2a`) and **info** (default `4a4a52`) — plus a default accent and a per-category accent (waves / base / attack / core threat / manual control / losses / high value / factory / unit ready / mining / info) editable via the swatch button on the right. Cards themselves are drawn as Red Alert 2 style panels: vertical gradient, 1px near-black frame, inner top-left highlight + bottom-right shadow and the left event-type bar, square corners.
 
 ## Voice Assets
 

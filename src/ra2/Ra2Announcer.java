@@ -686,7 +686,8 @@ public class Ra2Announcer extends Mod{
         table.sliderPref("ra2ann-line-alpha", 95, 35, 100, 5, value -> value + "%");
 
         SettingsRows.title(table, "ra2ann.category.colors");
-        colorRow(table, "ra2ann-card-color", "b51f2a");
+        colorRow(table, "ra2ann-card-alert-color", "b51f2a");
+        colorRow(table, "ra2ann-card-info-color", "4a4a52");
         colorRow(table, "ra2ann-accent-color", "ef3d46");
         colorRow(table, "ra2ann-wave-color", "ffd166");
         colorRow(table, "ra2ann-base-color", "ef3d46");
