@@ -16,6 +16,7 @@ Mindustry v8/v159 客户端 Java mod:红警2原版副官索菲亚(Zofia)语音�
   - `UnitReports.java` 生产完成与“我方单位受袭”的聚合播报
   - `TypeFilters.java` 四套白名单过滤 + 勾选对话框
   - `SettingsRows.java` 设置页自定义行(分区标题/色块/按钮)的注册包装,见“代码约束”
+  - `ObjectiveWatch.java` 地图目标完成播报(轮询 `MapObjective.isCompleted()`;因工作区 Arc 产物缺 `AllowSerialization`,改用反射读公开成员)
   - `Texts.java` `名称×数量、…` 列表文本工具
 - `assets/sounds/ann_*.ogg` — 红警2原版索菲亚固定台词(29 段,与语言无关)
 - `assets/sounds/zh/`、`assets/sounds/en/` — 单位/建筑名 TTS 名称包(各 60 单位 + 231 建筑)
@@ -61,6 +62,7 @@ python tools/verify_pack.py
 6. 局域网双开:客户端能收到敌方单控 `UnitControlEvent`、敌方集结聚类播报(MP 可见性核心验证)。
 7. 设置页四套过滤对话框可勾选保存;透明度/缩放滑条即时生效;名称语音语言切换后重新加载名称包。
 8. 打开设置页确认 5 个分区标题、“颜色”区 16 个色块(警报/情报两档卡片底色 + 14 个强调色,点开可改色且保存后色块文字/颜色立即更新)、名称语音语言按钮、4 个过滤按钮与测试播报按钮全部在位 —— 原版与 MindustryX 都要过(设置表重建时最容易被抹掉)。
+9. 在有 objective 的地图完成一个目标:卡片为灰底“地图目标完成:目标文本”、语音播“Objective complete”;载入已经完成目标的存档不补播;关掉“地图目标完成”开关后不再播报。
 
 ## 提交约定
 

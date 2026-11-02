@@ -271,6 +271,7 @@ public class Ra2Announcer extends Mod{
         LossTracker.flush();
         UnitReports.flush();
         ThreatScanner.update();
+        ObjectiveWatch.update();
 
         //下一波前 5 秒预警
         if(state.rules.waves && state.rules.waveTimer && !state.gameOver && !waveWarned
@@ -371,6 +372,7 @@ public class Ra2Announcer extends Mod{
     private void resetRound(){
         Announcer.reset();
         ThreatScanner.reset();
+        ObjectiveWatch.reset();
         ControlWatch.reset();
         LossTracker.reset();
         UnitReports.reset();
@@ -656,6 +658,7 @@ public class Ra2Announcer extends Mod{
         table.sliderPref("ra2ann-control-cooldown", 15, 3, 120, 3, value -> Core.bundle.format("ra2ann.seconds", value));
         table.checkPref("ra2ann-research", true);
         table.checkPref("ra2ann-campaign", true);
+        table.checkPref("ra2ann-objective", true);
         table.checkPref("ra2ann-outcome", true);
 
         SettingsRows.title(table, "ra2ann.category.targets");

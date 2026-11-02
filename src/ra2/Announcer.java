@@ -49,6 +49,8 @@ public final class Announcer{
         {"ann_force_armor", "ann_wave_warn"},
         {"ann_boss", "ann_force_armor"},
         {"ann_sector", "ann_wave"},
+        //“Objective complete.” 与波次清空是同一句原版台词,单独一个逻辑键以便独立限流
+        {"ann_objective", "ann_wave_cleared"},
     };
 
     /** silence between two clips of the same chain, in ticks */
