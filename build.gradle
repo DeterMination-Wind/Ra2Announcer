@@ -151,6 +151,7 @@ tasks.register("jarAndroid", Jar){
     }
     from(projectDir){
         include "mod.hjson"
+        include "icon.png"
     }
     from("assets"){
         include "**"
@@ -170,6 +171,7 @@ tasks.register("jarMerged", Jar){
     }
     from(projectDir){
         include "mod.hjson"
+        include "icon.png"
     }
     from("assets"){
         include "**"
