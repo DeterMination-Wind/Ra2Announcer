@@ -9,9 +9,11 @@ Mindustry v8/v159 客户端 Java mod:红警2原版副官索菲亚(Zofia)语音�
 - `src/ra2/` — 全部 Java 源码(flat src 布局,包名 `ra2`):
   - `Ra2Announcer.java` 主类:`Mod` 入口、事件编排、设置页(`bekBuildSettings`)、颜色编辑器、高价值目标与自选单位判定、`categoryLine()` 兵种分类台词
   - `Announcer.java` 声音库 + 权重链调度 + 全局限流(最小间隔、真实时长排期、同片段最短重播)
-  - `EventFeedOverlay.java` 右侧卡片/浮标/连线(+ 同消息去重);卡片底色按警报/情报分档,绘制为 RA2 风格面板(渐变底 + 近黑外框 + 内侧斜切高光)
+  - `EventFeedOverlay.java` 右侧卡片/浮标/连线(+ 同消息去重);卡片底色按小类可单独设置、未设置时回落到警报/情报两档,绘制为 RA2 风格面板(渐变底 + 近黑外框 + 内侧斜切高光)
   - `ThreatScanner.java` 敌方集结聚类与核心威胁(按同步终点聚类,不依赖 `CommandAI.group`)
   - `ControlWatch.java` 单控检测(`UnitControlEvent` / `BuildingCommandEvent`)
+  - `UnitWatch.java` 指挥模式“监控此单位”:逐帧采样 `unit.controller()` 记录操控者,被操控时死亡则横幅 + 卡片 + 台词播报最近两人;菜单行经反射包一层 `PlacementFragment.rebuildCommand` 注入
+  - `MonitorBanner.java` 屏幕上方居中的 RA2 风格监控横幅(淡入/淡出,文字超长走省略号)
   - `LossTracker.java` 我方损失合并播报(卡片带具体类型名,语音念名可选)
   - `UnitReports.java` 生产完成与“我方单位受袭”的聚合播报
   - `TypeFilters.java` 四套白名单过滤 + 勾选对话框
@@ -21,10 +23,12 @@ Mindustry v8/v159 客户端 Java mod:红警2原版副官索菲亚(Zofia)语音�
 - `assets/sounds/ann_*.ogg` — 红警2原版索菲亚固定台词(29 段,与语言无关)
 - `assets/sounds/zh/`、`assets/sounds/en/` — 单位/建筑名 TTS 名称包(各 60 单位 + 231 建筑)
 - `assets/bundles/` — `bundle.properties`(英)/ `bundle_zh_CN.properties`(简中)/ `bundle_zh_TW.properties`(繁中,由简体经 OpenCC 转换),键前缀 `ra2ann.` / `setting.ra2ann-*.name`
+- `icon.png` — 模组图标（1024→512 px 红底八一金星徽，红警2《共和国之辉》风格），由 `tools/icon/make_icon.py` 生成，打包进 jar 根目录（Mindustry 按 `mod.root.child("icon.png")` 读取）
 - `tools/fetch_ra2_voice.py` — 从 HuggingFace 数据集按 HTTP Range 只取需要的索菲亚片段并转 ogg
 - `tools/build_names.py` — 从 `../Mindustry-master/core/assets/bundles` 重建名称词表
 - `tools/generate_voice.py` — edge-tts 生成名称语音(仅名称,固定台词不走 TTS)
 - `tools/verify_pack.py` — 静态自检(bundle 多语键一致、设置键、消息键、音频齐全、别名链)
+- `tools/icon/make_icon.py` — 生成 `icon.png`(纯 Pillow/Numpy，固定噪声种子，可重跑)
 
 ## 构建命令
 
@@ -48,21 +52,24 @@ python tools/verify_pack.py
 - **语音不需要准确,准确信息归提示框**:每条播报先落 `EventFeedOverlay.show` —— 卡片文字必须带具体名称/数量/玩家/区块/波次号;语音只播索菲亚固定台词,名称片段默认不播(`ra2ann-voice-names` 打开才接在台词后)。卡片被关掉时由 `EventFeedOverlay` 用 `ui.showInfoToast` 兜底(`ra2ann-toast-mode`)。任何“细节只能从语音听出来”的实现都算不符合需求。
 - 声音键是逻辑名(`ann_wave` / `name-unit-*`),固定台词文件在 `assets/sounds/` 根目录、名称包在 `assets/sounds/<lang>/`;`Announcer.ALIASES` 负责缺片段时的兜底,不要在键名里混语言前缀。
 - 设置键前缀 `ra2ann-`;bundle 键前缀 `ra2ann.`;声音键 `ann_*` / `name-unit-*` / `name-block-*`。
+- **颜色清单只有一个来源(`EventFeedOverlay.colorCategories`)**:设置页的小类颜色行与卡片绘制都按它取强调色键、底色键和默认值。强调色(`*-color`:左侧色条/连线/浮标)与卡片底色(`*-bg`:未单独设置时回落 `ra2ann-card-alert-color` / `ra2ann-card-info-color`)是两套独立键,**不要把底色改成从强调色派生**;底色编辑器里的“跟随默认”通过删除覆盖键实现。
 - **设置页里的自定义行(分区标题、颜色色块、语言按钮、过滤按钮、测试按钮)必须经 `SettingsRows.title/custom` 注册成 `SettingsTable.Setting`,不要直接 `table.add(...)`/`table.button(...)`**:原版 v8 的 `pref()` 每次都 `rebuild()`,MindustryX 把重建推迟到绘制时(`act()` → `build()`),两者都会 `clearChildren()` 后只按注册列表重建 —— 直加的行会被抹掉(表现为 MindustryX 上“颜色/标题/按钮整段消失”)。
 - 新增语音行:先在 `tools/fetch_ra2_voice.py` 的 `CLIPS` 里选一段索菲亚原声(用 `--list` 看文本)→ 生成 ogg → `Announcer.FIXED_LINES` 注册 → 三个 bundle 补 `setting.*`/消息键 → `python tools/verify_pack.py` 通过。
+- **指挥模式“监控此单位”(`UnitWatch`)**:操控者历史靠逐帧采样 `unit.controller()`(v8 里 `unitControl` 会转发到所有客户端,远程玩家接管队友单位后本客户端也能看到 `Player` 控制器),不要依赖只在特定本地玩家身上触发的输入事件;功能纯本地,不发任何 `Call.*`。菜单行通过反射读取 `PlacementFragment.commandTable` 并包一层 `rebuildCommand` 注入,**必须幂等**(`appendRow` 用 `ra2-monitor-row` 名字判重,`ensureInstalled` 检测 commandTable 换新后重挂),否则 WorldLoad/Unlock 触发的 `rebuild()` 会把行抹掉或重复叠加;死亡判定要在 `Unit.dead()` 第一帧锁存“是否被玩家操控”,空中单位坠毁前 `dead=true` 但 `destroy()`/`UnitDestroyEvent` 会延后。
 - `bekBundled` 钩子保持原样(公共静态布尔 + `bekBuildSettings(SettingsTable)` + `addCategory` 守卫),供并入 Neon 时复用。
 
 ## 验证清单
 
 1. `./gradlew classes` 无错误;`python tools/verify_pack.py` 全绿。
-2. `deploy` 后检查 `build/libs/Ra2Announcer.jar` 含 `mod.hjson`、`ra2/*.class`、`classes.dex`、`sounds/ann_*.ogg`、`sounds/zh|en/name-*.ogg`、`bundles/`。
+2. `deploy` 后检查 `build/libs/Ra2Announcer.jar` 含 `mod.hjson`、`icon.png`、`ra2/*.class`、`classes.dex`、`sounds/ann_*.ogg`、`sounds/zh|en/name-*.ogg`、`bundles/`。
 3. 单人装 mod:波次/核心受击/测试播报按钮出声;右侧卡片与浮标出现;同一事件短时间内不刷屏。
 4. 触发一次单位损失与一次生产:卡片列出具体“名称×数量”;语音只播索菲亚台词(除非打开“语音朗读具体名称”)。
 5. 关掉“右侧事件卡片”后触发播报:原版提示框仍显示同一条准确文字。
 6. 局域网双开:客户端能收到敌方单控 `UnitControlEvent`、敌方集结聚类播报(MP 可见性核心验证)。
 7. 设置页四套过滤对话框可勾选保存;透明度/缩放滑条即时生效;名称语音语言切换后重新加载名称包。
-8. 打开设置页确认 5 个分区标题、“颜色”区 16 个色块(警报/情报两档卡片底色 + 14 个强调色,点开可改色且保存后色块文字/颜色立即更新)、名称语音语言按钮、4 个过滤按钮与测试播报按钮全部在位 —— 原版与 MindustryX 都要过(设置表重建时最容易被抹掉)。
+8. 打开设置页确认 5 个分区标题、“颜色”区说明行与 16 行颜色(警报/情报两档默认底色各 1 个色块 + 14 个小类各 2 个色块:左强调色、右卡片底色),点开可改色且保存后所有色块文字/颜色立即更新;改警报/情报默认底色后,没有单独底色的小类底色色块同步变化;小类底色编辑器里的“跟随默认”删除覆盖值并立即回落 —— 原版与 MindustryX 都要过(设置表重建时最容易被抹掉)。
 9. 在有 objective 的地图完成一个目标:卡片为灰底“地图目标完成:目标文本”、语音播“Objective complete”;载入已经完成目标的存档不补播;关掉“地图目标完成”开关后不再播报。
+10. 指挥模式只选中一个单位,点菜单里的“监控此单位”(位置在原版指挥表的单位列表/指令行下方,与 MindustryX 的“低血量单位”行同级):状态显示“监控中:单位名”;让两名玩家先后接管该单位、最后一名玩家操控时把单位打死 —— 顶部弹出“监控单位死亡”横幅,内容为 `操控者玩家2(30s前)->玩家1`(后一名操控者播报当前昵称,前一名带停止操控至今的时间),右侧卡片同文并指向死亡位置,语音播“Unit lost”;把“监控昵称截断长度”调小后昵称按字符截断并带省略号;单位未被操控时死亡不播报;换关/重开地图后监控状态与横幅清空;原版与 MindustryX 都要验证菜单行存在且不重复。
 
 ## 提交约定
 

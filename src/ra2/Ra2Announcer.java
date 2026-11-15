@@ -7,6 +7,7 @@ import arc.graphics.g2d.TextureRegion;
 import arc.scene.Element;
 import arc.scene.event.ChangeListener;
 import arc.scene.ui.Image;
+import arc.scene.ui.Label;
 import arc.scene.ui.TextButton;
 import arc.scene.ui.TextField;
 import arc.scene.ui.layout.Scl;
@@ -104,6 +105,8 @@ public class Ra2Announcer extends Mod{
 
         Announcer.load();
         EventFeedOverlay.init();
+        MonitorBanner.init();
+        UnitWatch.init();
         ControlWatch.register();
         registerEvents();
         if(!bekBundled){
@@ -144,6 +147,7 @@ public class Ra2Announcer extends Mod{
 
         Events.on(UnitDestroyEvent.class, e -> {
             if(e.unit == null) return;
+            UnitWatch.onUnitDestroy(e.unit);
             LossTracker.onUnitDestroy(e.unit);
 
             if(player == null || e.unit.team == player.team() || isMissile(e.unit) || e.unit.type == null) return;
@@ -266,6 +270,10 @@ public class Ra2Announcer extends Mod{
         Announcer.update();
         Announcer.checkLangReload();
         if(player == null || !state.isGame()) return;
+
+        //监控单位:操控者切换要逐帧采样,不能等到 12 帧的聚合节流
+        UnitWatch.update();
+
         if(!timer.get(12f)) return;
 
         LossTracker.flush();
@@ -376,6 +384,7 @@ public class Ra2Announcer extends Mod{
         ControlWatch.reset();
         LossTracker.reset();
         UnitReports.reset();
+        UnitWatch.reset();
         detectedAt.clear();
         waveWarned = false;
         coreCriticalReported = false;
@@ -667,6 +676,8 @@ public class Ra2Announcer extends Mod{
         table.textPref("ra2ann-high-value-targets", HIGH_VALUE_DEFAULT);
         table.checkPref("ra2ann-watch", true);
         table.textPref("ra2ann-watch-units", "");
+        table.sliderPref("ra2ann-monitor-name-length", 12, 3, 32, 1, value -> value + "");
+        table.sliderPref("ra2ann-monitor-banner-duration", 6, 3, 15, 1, value -> Core.bundle.format("ra2ann.seconds", value));
         SettingsRows.custom(table, t -> TypeFilters.addFilterButtons(t));
 
         SettingsRows.title(table, "ra2ann.category.ui");
@@ -689,22 +700,12 @@ public class Ra2Announcer extends Mod{
         table.sliderPref("ra2ann-line-alpha", 95, 35, 100, 5, value -> value + "%");
 
         SettingsRows.title(table, "ra2ann.category.colors");
-        colorRow(table, "ra2ann-card-alert-color", "b51f2a");
-        colorRow(table, "ra2ann-card-info-color", "4a4a52");
-        colorRow(table, "ra2ann-accent-color", "ef3d46");
-        colorRow(table, "ra2ann-wave-color", "ffd166");
-        colorRow(table, "ra2ann-base-color", "ef3d46");
-        colorRow(table, "ra2ann-attack-color", "ff5a3c");
-        colorRow(table, "ra2ann-core-threat-color", "ff2a2a");
-        colorRow(table, "ra2ann-control-color", "ff7e46");
-        colorRow(table, "ra2ann-control-friendly-color", "4ce0c8");
-        colorRow(table, "ra2ann-loss-unit-color", "b51f2a");
-        colorRow(table, "ra2ann-loss-block-color", "9aa0a6");
-        colorRow(table, "ra2ann-high-value-color", "ffb347");
-        colorRow(table, "ra2ann-factory-color", "64a0ff");
-        colorRow(table, "ra2ann-unit-ready-color", "64a0ff");
-        colorRow(table, "ra2ann-miner-color", "ffd166");
-        colorRow(table, "ra2ann-info-color", "64a0ff");
+        colorHint(table);
+        colorRow(table, "ra2ann-card-alert-color", EventFeedOverlay.alertBackgroundHex());
+        colorRow(table, "ra2ann-card-info-color", EventFeedOverlay.infoBackgroundHex());
+        for(String[] category : EventFeedOverlay.colorCategories){
+            categoryColorRow(table, category[0]);
+        }
 
         SettingsRows.custom(table, t -> t.button(Core.bundle.get("ra2ann.test", "Test announcement"), () -> {
             String[] keys = Announcer.FIXED_LINES;
@@ -739,6 +740,18 @@ public class Ra2Announcer extends Mod{
         return Core.bundle.get(value == 1 ? "ra2ann.toast.fallback" : "ra2ann.toast.always", "?");
     }
 
+    /** 颜色区说明:一行两个色块的读法。 */
+    private void colorHint(SettingsMenuDialog.SettingsTable table){
+        SettingsRows.custom(table, t -> {
+            Label hint = new Label(Core.bundle.get("ra2ann.colors.hint",
+                "Each row has two swatches: accent (bar / line / marker) and card background."));
+            hint.setWrap(true);
+            hint.setColor(Color.lightGray);
+            t.add(hint).colspan(2).growX().left().padLeft(10f).padTop(2f).padBottom(2f).row();
+        });
+    }
+
+    /** 警报/情报两档默认底色:小类没有单独设置时跟随它们。 */
     private void colorRow(SettingsMenuDialog.SettingsTable table, String colorKey, String colorDefault){
         String label = Core.bundle.get("setting." + colorKey + ".name", colorKey);
         SettingsRows.custom(table, t -> {
@@ -756,10 +769,77 @@ public class Ra2Announcer extends Mod{
         });
     }
 
+    /** 播报小类:左色块=强调色(侧边条/连线/浮标),右色块=该小类自己的卡片底色。 */
+    private void categoryColorRow(SettingsMenuDialog.SettingsTable table, String accentKey){
+        String label = Core.bundle.get("setting." + accentKey + ".name", accentKey);
+        String backgroundKey = EventFeedOverlay.backgroundKey(accentKey);
+        SettingsRows.custom(table, t -> {
+            Table row = new Table();
+            row.add(label).growX().height(45f).left().padLeft(10f);
+
+            String accent = EventFeedOverlay.accentHex(accentKey);
+            String accentDefault = EventFeedOverlay.accentDefaultHex(accentKey);
+            TextButton accentSwatch = row.button(accent, Styles.flatTogglet,
+                    () -> showColorEditor(accentKey, accentDefault))
+                .width(112f).height(45f).padLeft(6f)
+                .tooltip(Core.bundle.get("ra2ann.color.accent.hint", "Accent: left bar, connection line and marker.")).get();
+            accentSwatch.getLabel().setColor(parseHexOr(accent, accentDefault));
+            colorSwatches.put(accentKey, accentSwatch);
+
+            String background = EventFeedOverlay.cardBackgroundHex(accentKey);
+            TextButton backgroundSwatch = row.button(backgroundText(background), Styles.flatTogglet,
+                    () -> showColorEditor(backgroundKey, EventFeedOverlay.defaultBackgroundHex(accentKey), true))
+                .width(112f).height(45f).padLeft(6f)
+                .tooltip(Core.bundle.get("ra2ann.color.background.hint", "Card background; follows the alert/info default until set.")).get();
+            backgroundSwatch.getLabel().setColor(parseHexOr(background, "ffffff"));
+            colorSwatches.put(backgroundKey, backgroundSwatch);
+
+            t.add(row).minWidth(Math.min(500f, Core.graphics.getWidth() / 1.2f / Scl.scl(1f)))
+                .fillX().height(45f).left().padTop(7f);
+            t.row();
+        });
+    }
+
+    private static String backgroundText(String value){
+        return Core.bundle.get("ra2ann.color.bgShort", "BG") + " " + value;
+    }
+
+    /** 设置变动后统一刷新所有色块:改警报/情报默认底色时,继承它的小类底色也要跟着变。 */
+    private void refreshColorSwatches(){
+        updateSwatch("ra2ann-card-alert-color", EventFeedOverlay.alertBackgroundHex(), false);
+        updateSwatch("ra2ann-card-info-color", EventFeedOverlay.infoBackgroundHex(), false);
+        for(String[] category : EventFeedOverlay.colorCategories){
+            updateSwatch(category[0], EventFeedOverlay.accentHex(category[0]), false);
+            updateSwatch(category[1], EventFeedOverlay.cardBackgroundHex(category[0]), true);
+        }
+    }
+
+    private void updateSwatch(String key, String value, boolean background){
+        TextButton swatch = colorSwatches.get(key);
+        if(swatch == null) return;
+        swatch.setText(background ? backgroundText(value) : value);
+        swatch.getLabel().setColor(parseHexOr(value, "ffffff"));
+    }
+
     private void showColorEditor(String key, String colorDefault){
+        showColorEditor(key, colorDefault, false);
+    }
+
+    /** @param inheritable 底色键:删掉覆盖值即回落到警报/情报默认底色 */
+    private void showColorEditor(String key, String colorDefault, boolean inheritable){
         String current = Core.settings.getString(key, colorDefault);
-        BaseDialog dialog = new BaseDialog(Core.bundle.get("ra2ann.color.title", "Color"));
+        String title = Core.bundle.get("ra2ann.color.title", "Color");
+        if(inheritable) title += " - " + Core.bundle.get("setting." + key + ".name", key);
+        BaseDialog dialog = new BaseDialog(title);
         dialog.cont.margin(16f);
+
+        if(inheritable){
+            Label hint = new Label(Core.bundle.get("ra2ann.color.inherit.hint",
+                "Unset follows the alert/info default background."));
+            hint.setWrap(true);
+            hint.setColor(Color.lightGray);
+            dialog.cont.add(hint).width(320f).padBottom(6f).row();
+        }
 
         Table top = new Table();
         Image preview = new Image(Tex.whiteui);
@@ -786,15 +866,18 @@ public class Ra2Announcer extends Mod{
         dialog.cont.add(grid).padTop(10f).row();
 
         dialog.buttons.defaults().width(120f);
+        if(inheritable){
+            dialog.buttons.button(Core.bundle.get("ra2ann.color.inherit", "Use default"), () -> {
+                Core.settings.remove(key);
+                refreshColorSwatches();
+                dialog.hide();
+            });
+        }
         dialog.buttons.button("@ok", () -> {
             String value = field.getText().trim().replace("#", "").toLowerCase();
             if(value.matches("[0-9a-f]{6}([0-9a-f]{2})?")){
                 Core.settings.put(key, value);
-                TextButton swatch = colorSwatches.get(key);
-                if(swatch != null){
-                    swatch.setText(value);
-                    swatch.getLabel().setColor(parseHexOr(value, colorDefault));
-                }
+                refreshColorSwatches();
                 dialog.hide();
             }
         });

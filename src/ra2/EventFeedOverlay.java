@@ -42,6 +42,31 @@ public final class EventFeedOverlay{
     private static final float DEDUP_TICKS = 75f;
     /** RA2 panel: near-black 1px frame + derived highlight/shadow, no rounding */
     private static final String BORDER_HEX = "10100f";
+    private static final String DEFAULT_ACCENT = "ef3d46";
+    private static final String DEFAULT_ALERT_BACKGROUND = "b51f2a";
+    private static final String DEFAULT_INFO_BACKGROUND = "4a4a52";
+
+    /**
+     * 播报小类清单:{强调色设置键, 卡片底色设置键, 强调色默认值}。
+     * 设置页的小类颜色行与卡片绘制共用这一份,避免键名和默认值两处走样。
+     */
+    static final String[][] colorCategories = {
+        {"ra2ann-accent-color", "ra2ann-accent-bg", DEFAULT_ACCENT},
+        {"ra2ann-wave-color", "ra2ann-wave-bg", "ffd166"},
+        {"ra2ann-base-color", "ra2ann-base-bg", DEFAULT_ACCENT},
+        {"ra2ann-attack-color", "ra2ann-attack-bg", "ff5a3c"},
+        {"ra2ann-core-threat-color", "ra2ann-core-threat-bg", "ff2a2a"},
+        {"ra2ann-control-color", "ra2ann-control-bg", "ff7e46"},
+        {"ra2ann-control-friendly-color", "ra2ann-control-friendly-bg", "4ce0c8"},
+        {"ra2ann-loss-unit-color", "ra2ann-loss-unit-bg", "b51f2a"},
+        {"ra2ann-loss-block-color", "ra2ann-loss-block-bg", "9aa0a6"},
+        {"ra2ann-high-value-color", "ra2ann-high-value-bg", "ffb347"},
+        {"ra2ann-factory-color", "ra2ann-factory-bg", "64a0ff"},
+        {"ra2ann-unit-ready-color", "ra2ann-unit-ready-bg", "64a0ff"},
+        {"ra2ann-miner-color", "ra2ann-miner-bg", "ffd166"},
+        {"ra2ann-info-color", "ra2ann-info-bg", "64a0ff"},
+    };
+
     /** scratch colors so the per-frame card draw does not allocate */
     private static final Color baseColor = new Color(), panelTop = new Color(), panelBottom = new Color(),
         panelLight = new Color(), panelDark = new Color();
@@ -154,19 +179,6 @@ public final class EventFeedOverlay{
         return state != null && state.isGame() && ui != null && ui.hudfrag != null && ui.hudfrag.shown;
     }
 
-    private static Color colorSetting(String key, String fallback){
-        String value = Core.settings.getString(key, fallback);
-        if(value == null) value = fallback;
-        value = value.trim();
-        if(value.startsWith("#")) value = value.substring(1);
-        if(value.length() != 6 && value.length() != 8) value = fallback;
-        try{
-            return Color.valueOf(value);
-        }catch(Throwable ignored){
-            return Color.valueOf(fallback);
-        }
-    }
-
     private static float lineWidth(){
         return Mathf.clamp(Core.settings.getInt("ra2ann-line-width", 3), 1f, 6f) * Scl.scl(1f);
     }
@@ -175,12 +187,12 @@ public final class EventFeedOverlay{
         return Mathf.clamp(Core.settings.getInt("ra2ann-line-alpha", 95), 35f, 100f) / 100f * opacity();
     }
 
+    /** 小类强调色:左侧色条、连线与浮标共用,和卡片底色是两套独立设置。 */
     private static Color entryColor(String key){
-        if(key == null || key.isEmpty()) return colorSetting("ra2ann-accent-color", "ef3d46");
-        return colorSetting(key, defaultColor(key));
+        return Color.valueOf(accentHex(key));
     }
 
-    /** 情报类(生产完成/兵厂训练/科研/胜负/区块)用灰底,其余全是警报红底。 */
+    /** 情报类(生产完成/兵厂训练/科研/胜负/区块)默认灰底,其余默认警报红底。 */
     private static boolean infoFamily(String colorKey){
         if(colorKey == null) return false;
         String key = colorKey.toLowerCase();
@@ -188,31 +200,81 @@ public final class EventFeedOverlay{
     }
 
     private static Color backgroundColor(String colorKey){
-        if(infoFamily(colorKey)) return colorSetting("ra2ann-card-info-color", "4a4a52");
-        //旧版“卡片底色”继续作为警报底的回退默认值,老用户的自定义值不会丢
-        return colorSetting("ra2ann-card-alert-color", legacyAlertColor());
+        return Color.valueOf(cardBackgroundHex(colorKey));
+    }
+
+    /** 小类强调色的默认值;未知键(含 null)回落到默认强调色。 */
+    static String accentDefaultHex(String colorKey){
+        if(colorKey == null || colorKey.isEmpty()) return DEFAULT_ACCENT;
+        for(String[] category : colorCategories){
+            if(category[0].equals(colorKey)) return category[2];
+        }
+        return DEFAULT_ACCENT;
+    }
+
+    /** 小类当前生效的强调色(设置值无效时用默认值)。 */
+    static String accentHex(String colorKey){
+        String key = colorKey == null || colorKey.isEmpty() ? "ra2ann-accent-color" : colorKey;
+        String fallback = accentDefaultHex(key);
+        return cleanHex(Core.settings.getString(key, fallback), fallback);
+    }
+
+    /** 小类对应的卡片底色设置键;null 代表默认强调色小类。 */
+    static String backgroundKey(String accentKey){
+        String key = accentKey == null || accentKey.isEmpty() ? "ra2ann-accent-color" : accentKey;
+        for(String[] category : colorCategories){
+            if(category[0].equals(key)) return category[1];
+        }
+        return null;
+    }
+
+    /** 警报档默认底色(旧版“卡片底色”继续作为回退,老用户的自定义值不会丢)。 */
+    static String alertBackgroundHex(){
+        String legacy = legacyAlertColor();
+        return cleanHex(Core.settings.getString("ra2ann-card-alert-color", legacy), legacy);
+    }
+
+    /** 情报档默认底色。 */
+    static String infoBackgroundHex(){
+        return cleanHex(Core.settings.getString("ra2ann-card-info-color", DEFAULT_INFO_BACKGROUND), DEFAULT_INFO_BACKGROUND);
+    }
+
+    /** 小类没有单独设置底色时沿用的默认底色。 */
+    static String defaultBackgroundHex(String accentKey){
+        return infoFamily(accentKey) ? infoBackgroundHex() : alertBackgroundHex();
+    }
+
+    /** 卡片实际使用的底色:优先小类自己的设置,否则回落到警报/情报默认底色。 */
+    static String cardBackgroundHex(String accentKey){
+        String key = backgroundKey(accentKey);
+        if(key != null){
+            String override = cleanHex(Core.settings.getString(key, ""));
+            if(override != null) return override;
+        }
+        return defaultBackgroundHex(accentKey);
     }
 
     private static String legacyAlertColor(){
-        String legacy = Core.settings.getString("ra2ann-card-color", "b51f2a");
-        if(legacy == null) return "b51f2a";
-        legacy = legacy.trim();
-        if(legacy.startsWith("#")) legacy = legacy.substring(1);
-        if(legacy.length() != 6 && legacy.length() != 8) return "b51f2a";
-        return legacy;
+        return cleanHex(Core.settings.getString("ra2ann-card-color", DEFAULT_ALERT_BACKGROUND), DEFAULT_ALERT_BACKGROUND);
     }
 
-    private static String defaultColor(String key){
-        if(key == null) return "ef3d46";
-        if(key.contains("core-threat")) return "ff2a2a";
-        if(key.contains("high-value")) return "ffb347";
-        if(key.contains("control-friendly")) return "4ce0c8";
-        if(key.contains("miner")) return "ffd166";
-        if(key.contains("factory") || key.contains("unit-ready") || key.contains("info")) return "64a0ff";
-        if(key.contains("attack")) return "ff5a3c";
-        if(key.contains("control")) return "ff7e46";
-        if(key.contains("loss")) return "b51f2a";
-        return "ef3d46";
+    /** 归一化 6/8 位十六进制颜色;不合法返回 null。绘制路径每帧都会走,不用正则。 */
+    private static String cleanHex(String value){
+        if(value == null) return null;
+        String clean = value.trim();
+        if(clean.startsWith("#")) clean = clean.substring(1);
+        int length = clean.length();
+        if(length != 6 && length != 8) return null;
+        for(int i = 0; i < length; i++){
+            char c = clean.charAt(i);
+            if((c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F')) return null;
+        }
+        return clean;
+    }
+
+    private static String cleanHex(String value, String fallback){
+        String clean = cleanHex(value);
+        return clean == null ? fallback : clean;
     }
 
     private static String shortText(String message){
